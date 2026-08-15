@@ -18,6 +18,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndustriesRouteImport } from './routes/industries'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProductRouteImport } from './routes/product'
+import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as UseCasesRouteImport } from './routes/use-cases'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
@@ -71,6 +72,11 @@ const ProductRoute = ProductRouteImport.update({
   path: '/product',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SecurityRoute = SecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SolutionsRoute = SolutionsRouteImport.update({
   id: '/solutions',
   path: '/solutions',
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
   '/dashboard/agents': typeof DashboardAgentsRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
   '/dashboard/agents': typeof DashboardAgentsRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
   '/dashboard/agents': typeof DashboardAgentsRoute
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/industries'
     | '/pricing'
     | '/product'
+    | '/security'
     | '/solutions'
     | '/use-cases'
     | '/dashboard/agents'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/industries'
     | '/pricing'
     | '/product'
+    | '/security'
     | '/solutions'
     | '/use-cases'
     | '/dashboard/agents'
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | '/industries'
     | '/pricing'
     | '/product'
+    | '/security'
     | '/solutions'
     | '/use-cases'
     | '/dashboard/agents'
@@ -227,6 +239,7 @@ export interface RootRouteChildren {
   IndustriesRoute: typeof IndustriesRoute
   PricingRoute: typeof PricingRoute
   ProductRoute: typeof ProductRoute
+  SecurityRoute: typeof SecurityRoute
   SolutionsRoute: typeof SolutionsRoute
   UseCasesRoute: typeof UseCasesRoute
 }
@@ -294,6 +307,13 @@ declare module '@tanstack/react-router' {
       path: '/product'
       fullPath: '/product'
       preLoaderRoute: typeof ProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/security': {
+      id: '/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof SecurityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/solutions': {
@@ -378,6 +398,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndustriesRoute: IndustriesRoute,
   PricingRoute: PricingRoute,
   ProductRoute: ProductRoute,
+  SecurityRoute: SecurityRoute,
   SolutionsRoute: SolutionsRoute,
   UseCasesRoute: UseCasesRoute,
 }
