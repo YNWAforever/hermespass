@@ -77,6 +77,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="mt-auto p-4">
+          <Link
+            to="/"
+            className="mb-3 block rounded-lg border border-sidebar-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-sidebar-foreground"
+          >
+            ← Back to hermespass.asia
+          </Link>
           <div className="rounded-lg border border-sidebar-border bg-surface-raised/60 p-3">
             <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
               Organisation
