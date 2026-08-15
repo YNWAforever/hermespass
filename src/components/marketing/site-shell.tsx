@@ -128,13 +128,15 @@ function SiteFooter() {
         <FooterCol
           title="Company"
           links={[
+            { to: "/use-cases", label: "Use cases" },
+            { to: "/benefits", label: "Benefits" },
+            { to: "/industries", label: "Industries" },
             { to: "/solutions", label: "Solutions" },
-            { to: "/compliance-standards", label: "Compliance posture" },
-            { to: "/pricing", label: "Pricing" },
             { to: "/about", label: "About" },
             { to: "/contact", label: "Contact" },
           ]}
         />
+
         <div>
           <p className="text-xs font-semibold tracking-wide uppercase">
             Standards we build to
