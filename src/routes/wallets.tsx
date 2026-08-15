@@ -61,7 +61,7 @@ function WalletRow({
   agentName,
 }: {
   wallet: Wallet;
-  agentName?: string;
+  agentName?: string | undefined;
 }) {
   const { updateWallet, agentBySlug } = useHermes();
   const agent = agentBySlug(wallet.agentSlug);
