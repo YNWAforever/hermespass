@@ -14,7 +14,7 @@ import { DecisionBadge } from "@/components/hermes/badges";
 import { useHermes } from "@/lib/hermes-store";
 import { DECISION_TREND, formatHKD } from "@/lib/hermes-data";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/dashboard/")({
   head: () => ({
     meta: [
       { title: "HermesPass — Digital Passports & Compliance for AI Agents" },

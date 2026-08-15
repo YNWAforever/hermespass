@@ -39,7 +39,7 @@ import {
   type RiskTier,
 } from "@/lib/hermes-data";
 
-export const Route = createFileRoute("/agents")({
+export const Route = createFileRoute("/dashboard/agents")({
   head: () => ({
     meta: [
       { title: "Agent Directory & KYA Passport Center — HermesPass" },

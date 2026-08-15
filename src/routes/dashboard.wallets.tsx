@@ -9,7 +9,7 @@ import { RiskBadge, StatusBadge } from "@/components/hermes/badges";
 import { useHermes } from "@/lib/hermes-store";
 import { MCC_CATEGORIES, formatHKD, type Wallet } from "@/lib/hermes-data";
 
-export const Route = createFileRoute("/wallets")({
+export const Route = createFileRoute("/dashboard/wallets")({
   head: () => ({
     meta: [
       { title: "Scoped Agent Wallets & Spend Limits — HermesPass" },

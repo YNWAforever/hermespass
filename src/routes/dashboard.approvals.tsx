@@ -17,7 +17,7 @@ import { DecisionBadge, RiskBadge } from "@/components/hermes/badges";
 import { useHermes } from "@/lib/hermes-store";
 import { formatHKD, type Decision, type GatewayEvent } from "@/lib/hermes-data";
 
-export const Route = createFileRoute("/approvals")({
+export const Route = createFileRoute("/dashboard/approvals")({
   head: () => ({
     meta: [
       { title: "Live Policy Gateway & Human-in-the-Loop — HermesPass" },
