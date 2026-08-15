@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/hermes/page-header";
 import { DecisionBadge } from "@/components/hermes/badges";
 import { useHermes } from "@/lib/hermes-store";
 
-export const Route = createFileRoute("/compliance")({
+export const Route = createFileRoute("/dashboard/compliance")({
   head: () => ({
     meta: [
       { title: "Regulatory Audit Log & Compliance Exporter — HermesPass" },

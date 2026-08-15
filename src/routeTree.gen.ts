@@ -10,73 +10,186 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AgentsRouteImport } from './routes/agents'
-import { Route as ApprovalsRouteImport } from './routes/approvals'
-import { Route as ComplianceRouteImport } from './routes/compliance'
-import { Route as WalletsRouteImport } from './routes/wallets'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as ComplianceStandardsRouteImport } from './routes/compliance-standards'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as ProductRouteImport } from './routes/product'
+import { Route as SolutionsRouteImport } from './routes/solutions'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
+import { Route as DashboardAgentsRouteImport } from './routes/dashboard.agents'
+import { Route as DashboardApprovalsRouteImport } from './routes/dashboard.approvals'
+import { Route as DashboardComplianceRouteImport } from './routes/dashboard.compliance'
+import { Route as DashboardWalletsRouteImport } from './routes/dashboard.wallets'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AgentsRoute = AgentsRouteImport.update({
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComplianceStandardsRoute = ComplianceStandardsRouteImport.update({
+  id: '/compliance-standards',
+  path: '/compliance-standards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductRoute = ProductRouteImport.update({
+  id: '/product',
+  path: '/product',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SolutionsRoute = SolutionsRouteImport.update({
+  id: '/solutions',
+  path: '/solutions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAgentsRoute = DashboardAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => DashboardRoute,
 } as any)
-const ApprovalsRoute = ApprovalsRouteImport.update({
+const DashboardApprovalsRoute = DashboardApprovalsRouteImport.update({
   id: '/approvals',
   path: '/approvals',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => DashboardRoute,
 } as any)
-const ComplianceRoute = ComplianceRouteImport.update({
+const DashboardComplianceRoute = DashboardComplianceRouteImport.update({
   id: '/compliance',
   path: '/compliance',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => DashboardRoute,
 } as any)
-const WalletsRoute = WalletsRouteImport.update({
+const DashboardWalletsRoute = DashboardWalletsRouteImport.update({
   id: '/wallets',
   path: '/wallets',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => DashboardRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
-  '/approvals': typeof ApprovalsRoute
-  '/compliance': typeof ComplianceRoute
-  '/wallets': typeof WalletsRoute
+  '/about': typeof AboutRoute
+  '/compliance-standards': typeof ComplianceStandardsRoute
+  '/contact': typeof ContactRoute
+  '/dashboard': typeof DashboardRouteWithChildren
+  '/pricing': typeof PricingRoute
+  '/product': typeof ProductRoute
+  '/solutions': typeof SolutionsRoute
+  '/dashboard/agents': typeof DashboardAgentsRoute
+  '/dashboard/approvals': typeof DashboardApprovalsRoute
+  '/dashboard/compliance': typeof DashboardComplianceRoute
+  '/dashboard/wallets': typeof DashboardWalletsRoute
+  '/dashboard/': typeof DashboardIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
-  '/approvals': typeof ApprovalsRoute
-  '/compliance': typeof ComplianceRoute
-  '/wallets': typeof WalletsRoute
+  '/about': typeof AboutRoute
+  '/compliance-standards': typeof ComplianceStandardsRoute
+  '/contact': typeof ContactRoute
+  '/pricing': typeof PricingRoute
+  '/product': typeof ProductRoute
+  '/solutions': typeof SolutionsRoute
+  '/dashboard/agents': typeof DashboardAgentsRoute
+  '/dashboard/approvals': typeof DashboardApprovalsRoute
+  '/dashboard/compliance': typeof DashboardComplianceRoute
+  '/dashboard/wallets': typeof DashboardWalletsRoute
+  '/dashboard': typeof DashboardIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
-  '/approvals': typeof ApprovalsRoute
-  '/compliance': typeof ComplianceRoute
-  '/wallets': typeof WalletsRoute
+  '/about': typeof AboutRoute
+  '/compliance-standards': typeof ComplianceStandardsRoute
+  '/contact': typeof ContactRoute
+  '/dashboard': typeof DashboardRouteWithChildren
+  '/pricing': typeof PricingRoute
+  '/product': typeof ProductRoute
+  '/solutions': typeof SolutionsRoute
+  '/dashboard/agents': typeof DashboardAgentsRoute
+  '/dashboard/approvals': typeof DashboardApprovalsRoute
+  '/dashboard/compliance': typeof DashboardComplianceRoute
+  '/dashboard/wallets': typeof DashboardWalletsRoute
+  '/dashboard/': typeof DashboardIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/agents' | '/approvals' | '/compliance' | '/wallets'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/compliance-standards'
+    | '/contact'
+    | '/dashboard'
+    | '/pricing'
+    | '/product'
+    | '/solutions'
+    | '/dashboard/agents'
+    | '/dashboard/approvals'
+    | '/dashboard/compliance'
+    | '/dashboard/wallets'
+    | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/agents' | '/approvals' | '/compliance' | '/wallets'
-  id: '__root__' | '/' | '/agents' | '/approvals' | '/compliance' | '/wallets'
+  to:
+    | '/'
+    | '/about'
+    | '/compliance-standards'
+    | '/contact'
+    | '/pricing'
+    | '/product'
+    | '/solutions'
+    | '/dashboard/agents'
+    | '/dashboard/approvals'
+    | '/dashboard/compliance'
+    | '/dashboard/wallets'
+    | '/dashboard'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/compliance-standards'
+    | '/contact'
+    | '/dashboard'
+    | '/pricing'
+    | '/product'
+    | '/solutions'
+    | '/dashboard/agents'
+    | '/dashboard/approvals'
+    | '/dashboard/compliance'
+    | '/dashboard/wallets'
+    | '/dashboard/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AgentsRoute: typeof AgentsRoute
-  ApprovalsRoute: typeof ApprovalsRoute
-  ComplianceRoute: typeof ComplianceRoute
-  WalletsRoute: typeof WalletsRoute
+  AboutRoute: typeof AboutRoute
+  ComplianceStandardsRoute: typeof ComplianceStandardsRoute
+  ContactRoute: typeof ContactRoute
+  DashboardRoute: typeof DashboardRouteWithChildren
+  PricingRoute: typeof PricingRoute
+  ProductRoute: typeof ProductRoute
+  SolutionsRoute: typeof SolutionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -88,43 +201,122 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/agents': {
-      id: '/agents'
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compliance-standards': {
+      id: '/compliance-standards'
+      path: '/compliance-standards'
+      fullPath: '/compliance-standards'
+      preLoaderRoute: typeof ComplianceStandardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product': {
+      id: '/product'
+      path: '/product'
+      fullPath: '/product'
+      preLoaderRoute: typeof ProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/solutions': {
+      id: '/solutions'
+      path: '/solutions'
+      fullPath: '/solutions'
+      preLoaderRoute: typeof SolutionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/agents': {
+      id: '/dashboard/agents'
       path: '/agents'
-      fullPath: '/agents'
-      preLoaderRoute: typeof AgentsRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/dashboard/agents'
+      preLoaderRoute: typeof DashboardAgentsRouteImport
+      parentRoute: typeof DashboardRoute
     }
-    '/approvals': {
-      id: '/approvals'
+    '/dashboard/approvals': {
+      id: '/dashboard/approvals'
       path: '/approvals'
-      fullPath: '/approvals'
-      preLoaderRoute: typeof ApprovalsRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/dashboard/approvals'
+      preLoaderRoute: typeof DashboardApprovalsRouteImport
+      parentRoute: typeof DashboardRoute
     }
-    '/compliance': {
-      id: '/compliance'
+    '/dashboard/compliance': {
+      id: '/dashboard/compliance'
       path: '/compliance'
-      fullPath: '/compliance'
-      preLoaderRoute: typeof ComplianceRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/dashboard/compliance'
+      preLoaderRoute: typeof DashboardComplianceRouteImport
+      parentRoute: typeof DashboardRoute
     }
-    '/wallets': {
-      id: '/wallets'
+    '/dashboard/wallets': {
+      id: '/dashboard/wallets'
       path: '/wallets'
-      fullPath: '/wallets'
-      preLoaderRoute: typeof WalletsRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/dashboard/wallets'
+      preLoaderRoute: typeof DashboardWalletsRouteImport
+      parentRoute: typeof DashboardRoute
     }
   }
 }
 
+interface DashboardRouteChildren {
+  DashboardAgentsRoute: typeof DashboardAgentsRoute
+  DashboardApprovalsRoute: typeof DashboardApprovalsRoute
+  DashboardComplianceRoute: typeof DashboardComplianceRoute
+  DashboardWalletsRoute: typeof DashboardWalletsRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
+}
+
+const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAgentsRoute: DashboardAgentsRoute,
+  DashboardApprovalsRoute: DashboardApprovalsRoute,
+  DashboardComplianceRoute: DashboardComplianceRoute,
+  DashboardWalletsRoute: DashboardWalletsRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
+}
+
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AgentsRoute: AgentsRoute,
-  ApprovalsRoute: ApprovalsRoute,
-  ComplianceRoute: ComplianceRoute,
-  WalletsRoute: WalletsRoute,
+  AboutRoute: AboutRoute,
+  ComplianceStandardsRoute: ComplianceStandardsRoute,
+  ContactRoute: ContactRoute,
+  DashboardRoute: DashboardRouteWithChildren,
+  PricingRoute: PricingRoute,
+  ProductRoute: ProductRoute,
+  SolutionsRoute: SolutionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

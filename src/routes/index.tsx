@@ -1,230 +1,312 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { ArrowUpRight, Ban, Fingerprint, ShieldAlert, Zap } from "lucide-react";
-import { PageHeader } from "@/components/hermes/page-header";
-import { DecisionBadge } from "@/components/hermes/badges";
-import { useHermes } from "@/lib/hermes-store";
-import { DECISION_TREND, formatHKD } from "@/lib/hermes-data";
+  Activity,
+  ArrowRight,
+  BadgeCheck,
+  CreditCard,
+  FileCheck2,
+  Fingerprint,
+  Link2,
+  ShieldAlert,
+  Sparkles,
+} from "lucide-react";
+import {
+  CtaBand,
+  Section,
+  SectionHeading,
+  SiteShell,
+} from "@/components/marketing/site-shell";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "HermesPass — Digital Passports & Compliance for AI Agents" },
+      { title: "HermesPass — Know Your Agent Infrastructure for AI Agents" },
       {
         name: "description",
         content:
-          "HermesPass is the KYA infrastructure for enterprise AI agents: issue verifiable passports, gate every tool call, and export regulator-ready audit trails.",
+          "HermesPass gives every enterprise AI agent a verifiable digital passport, a real-time policy gateway, scoped payment limits and a tamper-evident audit chain.",
       },
       {
         property: "og:title",
-        content: "HermesPass — Digital Passports & Compliance for AI Agents",
+        content: "HermesPass — Know Your Agent Infrastructure for AI Agents",
       },
       {
         property: "og:description",
         content:
-          "Know Your Agent infrastructure for Hong Kong and Singapore: verifiable credentials, policy gateway, scoped wallets and tamper-evident audit logs.",
+          "Issue verifiable agent passports, gate every tool call in real time, cap agent spend and export regulator-ready audit evidence.",
       },
     ],
   }),
-  component: Overview,
+  component: HomePage,
 });
 
-function Overview() {
-  const { agents, events, wallets } = useHermes();
-  const holds = events.filter((e) => e.decision === "hold").length;
-  const denied = events.filter((e) => e.decision === "deny");
-  const blockedSpend = denied.reduce((sum, e) => sum + (e.amount ?? 0), 0);
-  const monthSpend = wallets.reduce((s, w) => s + w.spentThisMonth, 0);
+const PILLARS = [
+  {
+    icon: Fingerprint,
+    title: "Agent passports",
+    body: "Every agent gets a DID and a W3C Verifiable Credential stating its owner, role, risk tier and permitted tool scopes — cryptographically signed and independently verifiable.",
+  },
+  {
+    icon: Activity,
+    title: "Policy gateway",
+    body: "Each tool call is checked against policy before it executes and returns ALLOW, DENY or HOLD. High-impact actions escalate to a named human for a recorded mandate.",
+  },
+  {
+    icon: CreditCard,
+    title: "Scoped wallets",
+    body: "Agents transact through virtual cards with per-transaction, daily and monthly caps plus merchant-category whitelists, so autonomy never means unbounded spend.",
+  },
+  {
+    icon: FileCheck2,
+    title: "Audit chain",
+    body: "Every decision is written to a hash-linked ledger with payload digests and signature verification, exportable as CSV or a print-ready compliance report.",
+  },
+] as const;
 
+const STANDARDS = [
+  "W3C Verifiable Credentials 2.0",
+  "W3C DID Core",
+  "IMDA Model AI Governance for GenAI",
+  "HKMA GenA.I. Sandbox",
+  "Model Context Protocol (MCP)",
+] as const;
+
+function HomePage() {
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Control plane"
-        title="Agent governance overview"
-        description="A single control plane for the identity, authority and spend of every AI agent operating across your Hong Kong and Singapore entities."
-      />
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi
-          icon={Fingerprint}
-          label="Active passports"
-          value={String(agents.filter((a) => a.status === "active").length)}
-          detail={`${agents.length} registered agents`}
-        />
-        <Kpi
-          icon={Zap}
-          label="Actions gated today"
-          value={events.length.toLocaleString()}
-          detail="signature-verified tool calls"
-        />
-        <Kpi
-          icon={ShieldAlert}
-          label="Holds pending review"
-          value={String(holds)}
-          detail="awaiting human mandate"
-          tone="warn"
-        />
-        <Kpi
-          icon={Ban}
-          label="Blocked spend"
-          value={formatHKD(blockedSpend)}
-          detail={`${denied.length} denied payment mandates`}
-          tone="danger"
-        />
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
-        <section className="panel p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold">Decision mix — last 18h</h2>
-              <p className="text-xs text-muted-foreground">
-                Allow / hold / deny volume across the policy gateway
-              </p>
-            </div>
-            <span className="font-mono text-[11px] text-muted-foreground">
-              {formatHKD(monthSpend)} agent spend MTD
-            </span>
-          </div>
-          <div className="mt-5 h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={DECISION_TREND}>
-                <defs>
-                  {[
-                    ["allow", "var(--color-chart-1)"],
-                    ["hold", "var(--color-chart-3)"],
-                    ["deny", "var(--color-chart-4)"],
-                  ].map(([key, color]) => (
-                    <linearGradient
-                      key={key}
-                      id={`fill-${key}`}
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor={color} stopOpacity={0.45} />
-                      <stop offset="100%" stopColor={color} stopOpacity={0.02} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--color-border)"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="hour"
-                  stroke="var(--color-muted-foreground)"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="var(--color-muted-foreground)"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--color-popover)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 10,
-                    fontSize: 12,
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="allow"
-                  stroke="var(--color-chart-1)"
-                  fill="url(#fill-allow)"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="hold"
-                  stroke="var(--color-chart-3)"
-                  fill="url(#fill-hold)"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="deny"
-                  stroke="var(--color-chart-4)"
-                  fill="url(#fill-deny)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-
-        <section className="panel flex flex-col p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Recent gateway activity</h2>
+    <SiteShell>
+      <section className="grid-backdrop border-b border-border px-5 py-20 sm:py-28">
+        <div className="mx-auto max-w-6xl">
+          <span className="inline-flex items-center gap-2 rounded-full border border-cyan-accent/40 bg-cyan-accent/10 px-3 py-1 font-mono text-[11px] tracking-wider text-cyan-accent uppercase">
+            <Sparkles className="size-3.5" /> KYA · Know Your Agent
+          </span>
+          <h1 className="mt-6 max-w-3xl text-4xl leading-[1.05] font-semibold tracking-tight sm:text-6xl">
+            The digital passport and compliance layer for{" "}
+            <span className="text-emerald-accent">AI agents</span>
+          </h1>
+          <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            Enterprises are deploying agents that call tools, move money and
+            touch customer data — with no identity, no authority boundary and no
+            audit trail. HermesPass issues verifiable agent passports, gates
+            every action in real time, and produces the evidence your regulator
+            and your board expect.
+          </p>
+          <div className="mt-9 flex flex-wrap gap-3">
             <Link
-              to="/approvals"
-              className="inline-flex items-center gap-1 text-xs text-cyan-accent hover:underline"
+              to="/contact"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-glow-emerald transition-opacity hover:opacity-90"
             >
-              Open gateway <ArrowUpRight className="size-3.5" />
+              Book a briefing <ArrowRight className="size-4" />
+            </Link>
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center rounded-lg border border-border bg-surface px-5 py-2.5 text-sm font-medium transition-colors hover:bg-surface-raised"
+            >
+              Explore the live demo
             </Link>
           </div>
-          <ul className="mt-4 divide-y divide-border">
-            {events.slice(0, 6).map((e) => (
-              <li key={e.id} className="py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] text-cyan-accent">
-                    {e.tool}
-                  </span>
-                  <DecisionBadge decision={e.decision} />
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{e.summary}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
+
+          <div className="panel mt-14 grid gap-5 p-6 sm:grid-cols-3">
+            <HeroStat
+              label="Identity"
+              value="did:web"
+              detail="Resolvable agent identifiers with signed credentials"
+            />
+            <HeroStat
+              label="Authority"
+              value="ALLOW / HOLD / DENY"
+              detail="Policy decision on every gated tool call"
+            />
+            <HeroStat
+              label="Evidence"
+              value="Hash-linked"
+              detail="Tamper-evident ledger with one-click export"
+            />
+          </div>
+        </div>
+      </section>
+
+      <div className="border-b border-border bg-sidebar px-5 py-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-6 gap-y-3">
+          <span className="font-mono text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
+            Built to
+          </span>
+          {STANDARDS.map((s) => (
+            <span
+              key={s}
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+            >
+              <BadgeCheck className="size-3.5 text-emerald-accent" />
+              {s}
+            </span>
+          ))}
+        </div>
       </div>
-    </div>
+
+      <Section>
+        <SectionHeading
+          eyebrow="The gap"
+          title="Agentic AI broke the identity model"
+          description="Your controls assume a human actor behind every request. Agents don't fit: they're ephemeral, they chain tools together, and they act at machine speed."
+        />
+        <div className="mt-10 grid gap-5 md:grid-cols-3">
+          {[
+            {
+              title: "Unknown actors",
+              body: "Agents authenticate with borrowed service credentials, so logs show a system account instead of which agent acted, under whose mandate.",
+            },
+            {
+              title: "Unbounded authority",
+              body: "An agent granted an API key inherits everything that key can do — including transactions and data exports nobody scoped for autonomy.",
+            },
+            {
+              title: "Unprovable history",
+              body: "Application logs are mutable and scattered. When a regulator asks what an agent did and who authorised it, there is no defensible answer.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="panel p-6">
+              <ShieldAlert className="size-5 text-risk-high" />
+              <h3 className="mt-4 text-base font-semibold">{item.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {item.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section className="border-t border-border bg-sidebar/40">
+        <SectionHeading
+          eyebrow="The platform"
+          title="Four controls, one control plane"
+          description="Identity, authority, spend and evidence — issued once per agent and enforced on every action."
+        />
+        <div className="mt-10 grid gap-5 sm:grid-cols-2">
+          {PILLARS.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="panel p-6">
+              <span className="grid size-10 place-items-center rounded-lg border border-emerald-accent/30 bg-emerald-accent/10 text-emerald-accent">
+                <Icon className="size-5" />
+              </span>
+              <h3 className="mt-4 text-base font-semibold">{title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {body}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8">
+          <Link
+            to="/product"
+            className="inline-flex items-center gap-1.5 text-sm text-cyan-accent hover:underline"
+          >
+            See how each control works <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      </Section>
+
+      <Section>
+        <SectionHeading
+          eyebrow="How it works"
+          title="From issuance to evidence in three steps"
+        />
+        <div className="mt-10 grid gap-5 md:grid-cols-3">
+          {[
+            {
+              step: "01",
+              title: "Issue the passport",
+              body: "Register the agent, its owning entity, risk tier, tool scopes and spend ceiling. HermesPass mints a DID and signs a Verifiable Credential.",
+            },
+            {
+              step: "02",
+              title: "Route calls through the gateway",
+              body: "Point your agent runtime or MCP server at HermesPass. Each call is verified against the passport and policy, then allowed, held for a human, or denied.",
+            },
+            {
+              step: "03",
+              title: "Export the evidence",
+              body: "Every decision, payload digest and human mandate lands in the hash-linked audit chain, ready to export for internal audit or a supervisor.",
+            },
+          ].map((s) => (
+            <div key={s.step} className="panel p-6">
+              <span className="font-mono text-xs text-cyan-accent">
+                {s.step}
+              </span>
+              <h3 className="mt-3 text-base font-semibold">{s.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {s.body}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="panel mt-8 flex flex-wrap items-center justify-center gap-3 p-6 font-mono text-[11px] tracking-wide text-muted-foreground">
+          <span className="rounded-md border border-border bg-surface-raised px-2.5 py-1.5">
+            AI agent
+          </span>
+          <Link2 className="size-3.5 text-cyan-accent" />
+          <span className="rounded-md border border-emerald-accent/40 bg-emerald-accent/10 px-2.5 py-1.5 text-emerald-accent">
+            HermesPass gateway
+          </span>
+          <Link2 className="size-3.5 text-cyan-accent" />
+          <span className="rounded-md border border-border bg-surface-raised px-2.5 py-1.5">
+            Tools · APIs · payments
+          </span>
+          <Link2 className="size-3.5 text-cyan-accent" />
+          <span className="rounded-md border border-border bg-surface-raised px-2.5 py-1.5">
+            Hash-linked audit chain
+          </span>
+        </div>
+      </Section>
+
+      <Section className="border-t border-border bg-sidebar/40">
+        <SectionHeading
+          eyebrow="Where it lands"
+          title="Built for regulated, high-velocity operations"
+          description="Any team where an agent can spend money, touch customer data or act on a customer's behalf."
+        />
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["Banking & insurance", "Agent mandates evidenced per action"],
+            ["Commerce platforms", "Merchant-scoped agent purchasing"],
+            ["Ad tech & agencies", "Budget caps on optimisation agents"],
+            ["Procurement & BPO", "Approval thresholds with human sign-off"],
+          ].map(([title, detail]) => (
+            <div key={title} className="panel p-5">
+              <h3 className="text-sm font-semibold">{title}</h3>
+              <p className="mt-2 text-xs text-muted-foreground">{detail}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8">
+          <Link
+            to="/solutions"
+            className="inline-flex items-center gap-1.5 text-sm text-cyan-accent hover:underline"
+          >
+            Read the solution detail <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      </Section>
+
+      <CtaBand />
+    </SiteShell>
   );
 }
 
-function Kpi({
-  icon: Icon,
+function HeroStat({
   label,
   value,
   detail,
-  tone = "default",
 }: {
-  icon: typeof Zap;
   label: string;
   value: string;
   detail: string;
-  tone?: "default" | "warn" | "danger";
 }) {
-  const toneCls =
-    tone === "warn"
-      ? "text-risk-medium"
-      : tone === "danger"
-        ? "text-risk-high"
-        : "text-emerald-accent";
   return (
-    <div className="panel p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
-          {label}
-        </p>
-        <Icon className={`size-4 ${toneCls}`} />
-      </div>
-      <p className="mt-3 font-mono text-2xl font-semibold">{value}</p>
+    <div>
+      <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p className="mt-2 font-mono text-lg font-semibold text-emerald-accent">
+        {value}
+      </p>
       <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
     </div>
   );
