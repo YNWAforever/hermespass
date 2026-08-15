@@ -24,6 +24,19 @@ import { Route as RoiCalculatorRouteImport } from './routes/roi-calculator'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as UseCasesRouteImport } from './routes/use-cases'
+import { Route as LocaleIndexRouteImport } from './routes/$locale.index'
+import { Route as LocaleAboutRouteImport } from './routes/$locale.about'
+import { Route as LocaleBenefitsRouteImport } from './routes/$locale.benefits'
+import { Route as LocaleComplianceStandardsRouteImport } from './routes/$locale.compliance-standards'
+import { Route as LocaleContactRouteImport } from './routes/$locale.contact'
+import { Route as LocaleFaqRouteImport } from './routes/$locale.faq'
+import { Route as LocaleIndustriesRouteImport } from './routes/$locale.industries'
+import { Route as LocalePricingRouteImport } from './routes/$locale.pricing'
+import { Route as LocaleProductRouteImport } from './routes/$locale.product'
+import { Route as LocaleRoiCalculatorRouteImport } from './routes/$locale.roi-calculator'
+import { Route as LocaleSecurityRouteImport } from './routes/$locale.security'
+import { Route as LocaleSolutionsRouteImport } from './routes/$locale.solutions'
+import { Route as LocaleUseCasesRouteImport } from './routes/$locale.use-cases'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
 import { Route as DashboardAgentsRouteImport } from './routes/dashboard.agents'
 import { Route as DashboardApprovalsRouteImport } from './routes/dashboard.approvals'
@@ -105,6 +118,72 @@ const UseCasesRoute = UseCasesRouteImport.update({
   path: '/use-cases',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocaleIndexRoute = LocaleIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleAboutRoute = LocaleAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleBenefitsRoute = LocaleBenefitsRouteImport.update({
+  id: '/benefits',
+  path: '/benefits',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleComplianceStandardsRoute =
+  LocaleComplianceStandardsRouteImport.update({
+    id: '/compliance-standards',
+    path: '/compliance-standards',
+    getParentRoute: () => LocaleRoute,
+  } as any)
+const LocaleContactRoute = LocaleContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleFaqRoute = LocaleFaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleIndustriesRoute = LocaleIndustriesRouteImport.update({
+  id: '/industries',
+  path: '/industries',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocalePricingRoute = LocalePricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleProductRoute = LocaleProductRouteImport.update({
+  id: '/product',
+  path: '/product',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleRoiCalculatorRoute = LocaleRoiCalculatorRouteImport.update({
+  id: '/roi-calculator',
+  path: '/roi-calculator',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleSecurityRoute = LocaleSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleSolutionsRoute = LocaleSolutionsRouteImport.update({
+  id: '/solutions',
+  path: '/solutions',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleUseCasesRoute = LocaleUseCasesRouteImport.update({
+  id: '/use-cases',
+  path: '/use-cases',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -133,7 +212,7 @@ const DashboardWalletsRoute = DashboardWalletsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/$locale': typeof LocaleRoute
+  '/$locale': typeof LocaleRouteWithChildren
   '/about': typeof AboutRoute
   '/benefits': typeof BenefitsRoute
   '/compliance-standards': typeof ComplianceStandardsRoute
@@ -147,15 +226,27 @@ export interface FileRoutesByFullPath {
   '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
+  '/$locale/about': typeof LocaleAboutRoute
+  '/$locale/benefits': typeof LocaleBenefitsRoute
+  '/$locale/compliance-standards': typeof LocaleComplianceStandardsRoute
+  '/$locale/contact': typeof LocaleContactRoute
+  '/$locale/faq': typeof LocaleFaqRoute
+  '/$locale/industries': typeof LocaleIndustriesRoute
+  '/$locale/pricing': typeof LocalePricingRoute
+  '/$locale/product': typeof LocaleProductRoute
+  '/$locale/roi-calculator': typeof LocaleRoiCalculatorRoute
+  '/$locale/security': typeof LocaleSecurityRoute
+  '/$locale/solutions': typeof LocaleSolutionsRoute
+  '/$locale/use-cases': typeof LocaleUseCasesRoute
   '/dashboard/agents': typeof DashboardAgentsRoute
   '/dashboard/approvals': typeof DashboardApprovalsRoute
   '/dashboard/compliance': typeof DashboardComplianceRoute
   '/dashboard/wallets': typeof DashboardWalletsRoute
+  '/$locale/': typeof LocaleIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/$locale': typeof LocaleRoute
   '/about': typeof AboutRoute
   '/benefits': typeof BenefitsRoute
   '/compliance-standards': typeof ComplianceStandardsRoute
@@ -168,16 +259,29 @@ export interface FileRoutesByTo {
   '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
+  '/$locale/about': typeof LocaleAboutRoute
+  '/$locale/benefits': typeof LocaleBenefitsRoute
+  '/$locale/compliance-standards': typeof LocaleComplianceStandardsRoute
+  '/$locale/contact': typeof LocaleContactRoute
+  '/$locale/faq': typeof LocaleFaqRoute
+  '/$locale/industries': typeof LocaleIndustriesRoute
+  '/$locale/pricing': typeof LocalePricingRoute
+  '/$locale/product': typeof LocaleProductRoute
+  '/$locale/roi-calculator': typeof LocaleRoiCalculatorRoute
+  '/$locale/security': typeof LocaleSecurityRoute
+  '/$locale/solutions': typeof LocaleSolutionsRoute
+  '/$locale/use-cases': typeof LocaleUseCasesRoute
   '/dashboard/agents': typeof DashboardAgentsRoute
   '/dashboard/approvals': typeof DashboardApprovalsRoute
   '/dashboard/compliance': typeof DashboardComplianceRoute
   '/dashboard/wallets': typeof DashboardWalletsRoute
+  '/$locale': typeof LocaleIndexRoute
   '/dashboard': typeof DashboardIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/$locale': typeof LocaleRoute
+  '/$locale': typeof LocaleRouteWithChildren
   '/about': typeof AboutRoute
   '/benefits': typeof BenefitsRoute
   '/compliance-standards': typeof ComplianceStandardsRoute
@@ -191,10 +295,23 @@ export interface FileRoutesById {
   '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
+  '/$locale/about': typeof LocaleAboutRoute
+  '/$locale/benefits': typeof LocaleBenefitsRoute
+  '/$locale/compliance-standards': typeof LocaleComplianceStandardsRoute
+  '/$locale/contact': typeof LocaleContactRoute
+  '/$locale/faq': typeof LocaleFaqRoute
+  '/$locale/industries': typeof LocaleIndustriesRoute
+  '/$locale/pricing': typeof LocalePricingRoute
+  '/$locale/product': typeof LocaleProductRoute
+  '/$locale/roi-calculator': typeof LocaleRoiCalculatorRoute
+  '/$locale/security': typeof LocaleSecurityRoute
+  '/$locale/solutions': typeof LocaleSolutionsRoute
+  '/$locale/use-cases': typeof LocaleUseCasesRoute
   '/dashboard/agents': typeof DashboardAgentsRoute
   '/dashboard/approvals': typeof DashboardApprovalsRoute
   '/dashboard/compliance': typeof DashboardComplianceRoute
   '/dashboard/wallets': typeof DashboardWalletsRoute
+  '/$locale/': typeof LocaleIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
 export interface FileRouteTypes {
@@ -215,15 +332,27 @@ export interface FileRouteTypes {
     | '/security'
     | '/solutions'
     | '/use-cases'
+    | '/$locale/about'
+    | '/$locale/benefits'
+    | '/$locale/compliance-standards'
+    | '/$locale/contact'
+    | '/$locale/faq'
+    | '/$locale/industries'
+    | '/$locale/pricing'
+    | '/$locale/product'
+    | '/$locale/roi-calculator'
+    | '/$locale/security'
+    | '/$locale/solutions'
+    | '/$locale/use-cases'
     | '/dashboard/agents'
     | '/dashboard/approvals'
     | '/dashboard/compliance'
     | '/dashboard/wallets'
+    | '/$locale/'
     | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/$locale'
     | '/about'
     | '/benefits'
     | '/compliance-standards'
@@ -236,10 +365,23 @@ export interface FileRouteTypes {
     | '/security'
     | '/solutions'
     | '/use-cases'
+    | '/$locale/about'
+    | '/$locale/benefits'
+    | '/$locale/compliance-standards'
+    | '/$locale/contact'
+    | '/$locale/faq'
+    | '/$locale/industries'
+    | '/$locale/pricing'
+    | '/$locale/product'
+    | '/$locale/roi-calculator'
+    | '/$locale/security'
+    | '/$locale/solutions'
+    | '/$locale/use-cases'
     | '/dashboard/agents'
     | '/dashboard/approvals'
     | '/dashboard/compliance'
     | '/dashboard/wallets'
+    | '/$locale'
     | '/dashboard'
   id:
     | '__root__'
@@ -258,16 +400,29 @@ export interface FileRouteTypes {
     | '/security'
     | '/solutions'
     | '/use-cases'
+    | '/$locale/about'
+    | '/$locale/benefits'
+    | '/$locale/compliance-standards'
+    | '/$locale/contact'
+    | '/$locale/faq'
+    | '/$locale/industries'
+    | '/$locale/pricing'
+    | '/$locale/product'
+    | '/$locale/roi-calculator'
+    | '/$locale/security'
+    | '/$locale/solutions'
+    | '/$locale/use-cases'
     | '/dashboard/agents'
     | '/dashboard/approvals'
     | '/dashboard/compliance'
     | '/dashboard/wallets'
+    | '/$locale/'
     | '/dashboard/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  LocaleRoute: typeof LocaleRoute
+  LocaleRoute: typeof LocaleRouteWithChildren
   AboutRoute: typeof AboutRoute
   BenefitsRoute: typeof BenefitsRoute
   ComplianceStandardsRoute: typeof ComplianceStandardsRoute
@@ -390,6 +545,97 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UseCasesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$locale/': {
+      id: '/$locale/'
+      path: '/'
+      fullPath: '/$locale/'
+      preLoaderRoute: typeof LocaleIndexRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/about': {
+      id: '/$locale/about'
+      path: '/about'
+      fullPath: '/$locale/about'
+      preLoaderRoute: typeof LocaleAboutRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/benefits': {
+      id: '/$locale/benefits'
+      path: '/benefits'
+      fullPath: '/$locale/benefits'
+      preLoaderRoute: typeof LocaleBenefitsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/compliance-standards': {
+      id: '/$locale/compliance-standards'
+      path: '/compliance-standards'
+      fullPath: '/$locale/compliance-standards'
+      preLoaderRoute: typeof LocaleComplianceStandardsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/contact': {
+      id: '/$locale/contact'
+      path: '/contact'
+      fullPath: '/$locale/contact'
+      preLoaderRoute: typeof LocaleContactRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/faq': {
+      id: '/$locale/faq'
+      path: '/faq'
+      fullPath: '/$locale/faq'
+      preLoaderRoute: typeof LocaleFaqRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/industries': {
+      id: '/$locale/industries'
+      path: '/industries'
+      fullPath: '/$locale/industries'
+      preLoaderRoute: typeof LocaleIndustriesRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/pricing': {
+      id: '/$locale/pricing'
+      path: '/pricing'
+      fullPath: '/$locale/pricing'
+      preLoaderRoute: typeof LocalePricingRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/product': {
+      id: '/$locale/product'
+      path: '/product'
+      fullPath: '/$locale/product'
+      preLoaderRoute: typeof LocaleProductRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/roi-calculator': {
+      id: '/$locale/roi-calculator'
+      path: '/roi-calculator'
+      fullPath: '/$locale/roi-calculator'
+      preLoaderRoute: typeof LocaleRoiCalculatorRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/security': {
+      id: '/$locale/security'
+      path: '/security'
+      fullPath: '/$locale/security'
+      preLoaderRoute: typeof LocaleSecurityRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/solutions': {
+      id: '/$locale/solutions'
+      path: '/solutions'
+      fullPath: '/$locale/solutions'
+      preLoaderRoute: typeof LocaleSolutionsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/use-cases': {
+      id: '/$locale/use-cases'
+      path: '/use-cases'
+      fullPath: '/$locale/use-cases'
+      preLoaderRoute: typeof LocaleUseCasesRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/dashboard/': {
       id: '/dashboard/'
       path: '/'
@@ -428,6 +674,41 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LocaleRouteChildren {
+  LocaleAboutRoute: typeof LocaleAboutRoute
+  LocaleBenefitsRoute: typeof LocaleBenefitsRoute
+  LocaleComplianceStandardsRoute: typeof LocaleComplianceStandardsRoute
+  LocaleContactRoute: typeof LocaleContactRoute
+  LocaleFaqRoute: typeof LocaleFaqRoute
+  LocaleIndustriesRoute: typeof LocaleIndustriesRoute
+  LocalePricingRoute: typeof LocalePricingRoute
+  LocaleProductRoute: typeof LocaleProductRoute
+  LocaleRoiCalculatorRoute: typeof LocaleRoiCalculatorRoute
+  LocaleSecurityRoute: typeof LocaleSecurityRoute
+  LocaleSolutionsRoute: typeof LocaleSolutionsRoute
+  LocaleUseCasesRoute: typeof LocaleUseCasesRoute
+  LocaleIndexRoute: typeof LocaleIndexRoute
+}
+
+const LocaleRouteChildren: LocaleRouteChildren = {
+  LocaleAboutRoute: LocaleAboutRoute,
+  LocaleBenefitsRoute: LocaleBenefitsRoute,
+  LocaleComplianceStandardsRoute: LocaleComplianceStandardsRoute,
+  LocaleContactRoute: LocaleContactRoute,
+  LocaleFaqRoute: LocaleFaqRoute,
+  LocaleIndustriesRoute: LocaleIndustriesRoute,
+  LocalePricingRoute: LocalePricingRoute,
+  LocaleProductRoute: LocaleProductRoute,
+  LocaleRoiCalculatorRoute: LocaleRoiCalculatorRoute,
+  LocaleSecurityRoute: LocaleSecurityRoute,
+  LocaleSolutionsRoute: LocaleSolutionsRoute,
+  LocaleUseCasesRoute: LocaleUseCasesRoute,
+  LocaleIndexRoute: LocaleIndexRoute,
+}
+
+const LocaleRouteWithChildren =
+  LocaleRoute._addFileChildren(LocaleRouteChildren)
+
 interface DashboardRouteChildren {
   DashboardAgentsRoute: typeof DashboardAgentsRoute
   DashboardApprovalsRoute: typeof DashboardApprovalsRoute
@@ -450,7 +731,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  LocaleRoute: LocaleRoute,
+  LocaleRoute: LocaleRouteWithChildren,
   AboutRoute: AboutRoute,
   BenefitsRoute: BenefitsRoute,
   ComplianceStandardsRoute: ComplianceStandardsRoute,
