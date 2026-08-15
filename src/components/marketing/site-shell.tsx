@@ -55,12 +55,32 @@ function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <div className="hidden items-center rounded-lg border border-border bg-surface p-0.5 sm:flex">
+            <span className="rounded-md bg-surface-raised px-2 py-1 text-xs text-foreground">
+              EN
+            </span>
+            <Link
+              to="/$locale"
+              params={{ locale: "zh-hant" }}
+              className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              繁體
+            </Link>
+            <Link
+              to="/$locale"
+              params={{ locale: "zh-hans" }}
+              className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              简体
+            </Link>
+          </div>
           <Link
             to="/dashboard"
-            className="hidden rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-surface sm:inline-flex"
+            className="hidden rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-surface lg:inline-flex"
           >
             Live demo
           </Link>
+
           <Link
             to="/contact"
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
