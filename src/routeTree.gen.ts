@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as BenefitsRouteImport } from './routes/benefits'
 import { Route as ComplianceStandardsRouteImport } from './routes/compliance-standards'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -33,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BenefitsRoute = BenefitsRouteImport.update({
+  id: '/benefits',
+  path: '/benefits',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ComplianceStandardsRoute = ComplianceStandardsRouteImport.update({
@@ -104,6 +110,7 @@ const DashboardWalletsRoute = DashboardWalletsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/benefits': typeof BenefitsRoute
   '/compliance-standards': typeof ComplianceStandardsRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRouteWithChildren
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/benefits': typeof BenefitsRoute
   '/compliance-standards': typeof ComplianceStandardsRoute
   '/contact': typeof ContactRoute
   '/industries': typeof IndustriesRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/benefits': typeof BenefitsRoute
   '/compliance-standards': typeof ComplianceStandardsRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRouteWithChildren
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/benefits'
     | '/compliance-standards'
     | '/contact'
     | '/dashboard'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/benefits'
     | '/compliance-standards'
     | '/contact'
     | '/industries'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
+    | '/benefits'
     | '/compliance-standards'
     | '/contact'
     | '/dashboard'
@@ -208,6 +220,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  BenefitsRoute: typeof BenefitsRoute
   ComplianceStandardsRoute: typeof ComplianceStandardsRoute
   ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRouteWithChildren
@@ -232,6 +245,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/benefits': {
+      id: '/benefits'
+      path: '/benefits'
+      fullPath: '/benefits'
+      preLoaderRoute: typeof BenefitsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/compliance-standards': {
@@ -351,6 +371,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  BenefitsRoute: BenefitsRoute,
   ComplianceStandardsRoute: ComplianceStandardsRoute,
   ContactRoute: ContactRoute,
   DashboardRoute: DashboardRouteWithChildren,

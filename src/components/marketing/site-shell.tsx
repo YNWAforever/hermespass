@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils";
 
 export const SITE_NAV = [
   { to: "/product", label: "Product" },
-  { to: "/solutions", label: "Solutions" },
+  { to: "/use-cases", label: "Use cases" },
+  { to: "/benefits", label: "Benefits" },
+  { to: "/industries", label: "Industries" },
   { to: "/compliance-standards", label: "Compliance" },
   { to: "/pricing", label: "Pricing" },
-  { to: "/about", label: "About" },
 ] as const;
+
 
 export function SiteShell({ children }: { children: ReactNode }) {
   return (
