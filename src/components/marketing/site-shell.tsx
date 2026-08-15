@@ -10,6 +10,7 @@ export const SITE_NAV = [
   { to: "/industries", label: "Industries" },
   { to: "/compliance-standards", label: "Compliance" },
   { to: "/security", label: "Trust Center" },
+  { to: "/roi-calculator", label: "ROI" },
   { to: "/pricing", label: "Pricing" },
 ] as const;
 
@@ -124,6 +125,7 @@ function SiteFooter() {
             { to: "/dashboard/approvals", label: "Policy gateway" },
             { to: "/dashboard/wallets", label: "Scoped wallets" },
             { to: "/dashboard/compliance", label: "Audit chain" },
+            { to: "/roi-calculator", label: "ROI calculator" },
             { to: "/security", label: "Trust Center" },
           ]}
         />
