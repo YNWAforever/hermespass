@@ -172,7 +172,7 @@ function Overview() {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Recent gateway activity</h2>
             <Link
-              to="/approvals"
+              to="/dashboard/approvals"
               className="inline-flex items-center gap-1 text-xs text-cyan-accent hover:underline"
             >
               Open gateway <ArrowUpRight className="size-3.5" />

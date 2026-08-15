@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils";
 import { useHermes } from "@/lib/hermes-store";
 
 const NAV = [
-  { to: "/", label: "Overview", icon: Gauge },
-  { to: "/agents", label: "Agent Directory", icon: Fingerprint },
-  { to: "/approvals", label: "Policy Gateway", icon: Activity },
-  { to: "/wallets", label: "Scoped Wallets", icon: CreditCard },
-  { to: "/compliance", label: "Audit & Compliance", icon: FileCheck2 },
+  { to: "/dashboard", label: "Overview", icon: Gauge },
+  { to: "/dashboard/agents", label: "Agent Directory", icon: Fingerprint },
+  { to: "/dashboard/approvals", label: "Policy Gateway", icon: Activity },
+  { to: "/dashboard/wallets", label: "Scoped Wallets", icon: CreditCard },
+  { to: "/dashboard/compliance", label: "Audit & Compliance", icon: FileCheck2 },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -47,7 +47,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="flex flex-col gap-1 px-3">
           {NAV.map(({ to, label, icon: Icon }) => {
             const active =
-              to === "/" ? pathname === "/" : pathname.startsWith(to);
+              to === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(to);
             return (
               <Link
                 key={to}
@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/85 px-5 py-3 backdrop-blur">
-          <Link to="/" className="flex items-center gap-2 lg:hidden">
+          <Link to="/dashboard" className="flex items-center gap-2 lg:hidden">
             <ShieldCheck className="size-5 text-emerald-accent" />
             <span className="text-sm font-semibold">HermesPass</span>
           </Link>
@@ -110,7 +110,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </span>
           <Link
-            to="/approvals"
+            to="/dashboard/approvals"
             className="flex items-center gap-2 rounded-full border border-risk-medium/40 bg-risk-medium/10 px-2.5 py-1 text-[11px] font-medium text-risk-medium"
           >
             {holds} pending review
