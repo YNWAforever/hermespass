@@ -10,6 +10,7 @@ export const SITE_NAV = [
   { to: "/industries", label: "Industries" },
   { to: "/compliance-standards", label: "Compliance" },
   { to: "/security", label: "Trust Center" },
+  { to: "/roi-calculator", label: "ROI" },
   { to: "/pricing", label: "Pricing" },
 ] as const;
 
