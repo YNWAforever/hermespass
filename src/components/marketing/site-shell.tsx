@@ -392,8 +392,8 @@ function SiteHeader() {
 function SiteFooter() {
   return (
     <footer className="border-t border-border bg-sidebar">
-      <div className="mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
+      <div className="mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="lg:col-span-2">
           <div className="flex items-center gap-2.5">
             <span className="grid size-8 place-items-center rounded-lg border border-emerald-accent/40 bg-emerald-accent/10 text-emerald-accent">
               <ShieldCheck className="size-4" />
@@ -409,34 +409,27 @@ function SiteFooter() {
           </p>
         </div>
 
-        <FooterCol
-          title="Platform"
-          links={[
-            { to: "/product", label: "Product overview" },
-            { to: "/dashboard/agents", label: "Agent passports" },
-            { to: "/dashboard/approvals", label: "Policy gateway" },
-            { to: "/dashboard/wallets", label: "Scoped wallets" },
-            { to: "/dashboard/compliance", label: "Audit chain" },
-            { to: "/roi-calculator", label: "ROI calculator" },
-            { to: "/security", label: "Trust Center" },
-          ]}
-        />
-        <FooterCol
-          title="Company"
-          links={[
-            { to: "/use-cases", label: "Use cases" },
-            { to: "/benefits", label: "Benefits" },
-            { to: "/industries", label: "Industries" },
-            { to: "/solutions", label: "Solutions" },
-            { to: "/faq", label: "FAQ" },
-            { to: "/about", label: "About" },
-            { to: "/contact", label: "Contact" },
-          ]}
-        />
+        {NAV_GROUPS.map((group) => (
+          <FooterCol
+            key={group.id}
+            title={group.label}
+            links={
+              group.id === "resources"
+                ? [
+                    ...group.items.map((i) => ({
+                      to: i.to,
+                      label: i.label,
+                    })),
+                    { to: "/pricing", label: "Pricing" },
+                  ]
+                : group.items.map((i) => ({ to: i.to, label: i.label }))
+            }
+          />
+        ))}
 
         <div>
           <p className="text-xs font-semibold tracking-wide uppercase">
-            Standards we build to
+            Standards
           </p>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li>W3C Verifiable Credentials 2.0</li>
@@ -446,6 +439,7 @@ function SiteFooter() {
           </ul>
         </div>
       </div>
+
       <div className="border-t border-border px-5 py-5">
         <p className="mx-auto max-w-6xl text-xs text-muted-foreground">
           © {new Date().getFullYear()} HermesPass. Product surfaces shown in the
