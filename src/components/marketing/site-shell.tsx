@@ -137,6 +137,7 @@ function SiteFooter() {
             { to: "/benefits", label: "Benefits" },
             { to: "/industries", label: "Industries" },
             { to: "/solutions", label: "Solutions" },
+            { to: "/faq", label: "FAQ" },
             { to: "/about", label: "About" },
             { to: "/contact", label: "Contact" },
           ]}
