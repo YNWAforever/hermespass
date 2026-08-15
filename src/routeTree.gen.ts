@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ComplianceStandardsRouteImport } from './routes/compliance-standards'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ProductRouteImport } from './routes/product'
 import { Route as SolutionsRouteImport } from './routes/solutions'
@@ -22,6 +23,11 @@ import { Route as DashboardWalletsRouteImport } from './routes/dashboard.wallets
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComplianceStandardsRoute = ComplianceStandardsRouteImport.update({
+  id: '/compliance-standards',
+  path: '/compliance-standards',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -67,6 +73,7 @@ const DashboardWalletsRoute = DashboardWalletsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/compliance-standards': typeof ComplianceStandardsRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/product': typeof ProductRoute
   '/solutions': typeof SolutionsRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/compliance-standards': typeof ComplianceStandardsRoute
   '/product': typeof ProductRoute
   '/solutions': typeof SolutionsRoute
   '/dashboard/agents': typeof DashboardAgentsRoute
@@ -89,6 +97,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/compliance-standards': typeof ComplianceStandardsRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/product': typeof ProductRoute
   '/solutions': typeof SolutionsRoute
@@ -102,6 +111,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/compliance-standards'
     | '/dashboard'
     | '/product'
     | '/solutions'
@@ -113,6 +123,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/compliance-standards'
     | '/product'
     | '/solutions'
     | '/dashboard/agents'
@@ -123,6 +134,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/compliance-standards'
     | '/dashboard'
     | '/product'
     | '/solutions'
@@ -135,6 +147,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ComplianceStandardsRoute: typeof ComplianceStandardsRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   ProductRoute: typeof ProductRoute
   SolutionsRoute: typeof SolutionsRoute
@@ -147,6 +160,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compliance-standards': {
+      id: '/compliance-standards'
+      path: '/compliance-standards'
+      fullPath: '/compliance-standards'
+      preLoaderRoute: typeof ComplianceStandardsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -230,6 +250,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ComplianceStandardsRoute: ComplianceStandardsRoute,
   DashboardRoute: DashboardRouteWithChildren,
   ProductRoute: ProductRoute,
   SolutionsRoute: SolutionsRoute,
