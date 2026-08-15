@@ -125,6 +125,7 @@ function SiteFooter() {
             { to: "/dashboard/approvals", label: "Policy gateway" },
             { to: "/dashboard/wallets", label: "Scoped wallets" },
             { to: "/dashboard/compliance", label: "Audit chain" },
+            { to: "/roi-calculator", label: "ROI calculator" },
             { to: "/security", label: "Trust Center" },
           ]}
         />
