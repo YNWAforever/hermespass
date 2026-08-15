@@ -289,7 +289,9 @@ function InputRow({
       <div className="mt-5">
         <Slider
           value={[value]}
-          onValueChange={([v]) => onChange(v)}
+          onValueChange={([v]) => {
+            if (typeof v === "number") onChange(v);
+          }}
           min={min}
           max={max}
           step={step}

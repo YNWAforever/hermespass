@@ -18,6 +18,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndustriesRouteImport } from './routes/industries'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProductRouteImport } from './routes/product'
+import { Route as RoiCalculatorRouteImport } from './routes/roi-calculator'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as UseCasesRouteImport } from './routes/use-cases'
@@ -72,6 +73,11 @@ const ProductRoute = ProductRouteImport.update({
   path: '/product',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RoiCalculatorRoute = RoiCalculatorRouteImport.update({
+  id: '/roi-calculator',
+  path: '/roi-calculator',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SecurityRoute = SecurityRouteImport.update({
   id: '/security',
   path: '/security',
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/roi-calculator': typeof RoiCalculatorRoute
   '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/roi-calculator': typeof RoiCalculatorRoute
   '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/roi-calculator': typeof RoiCalculatorRoute
   '/security': typeof SecurityRoute
   '/solutions': typeof SolutionsRoute
   '/use-cases': typeof UseCasesRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/industries'
     | '/pricing'
     | '/product'
+    | '/roi-calculator'
     | '/security'
     | '/solutions'
     | '/use-cases'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/industries'
     | '/pricing'
     | '/product'
+    | '/roi-calculator'
     | '/security'
     | '/solutions'
     | '/use-cases'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/industries'
     | '/pricing'
     | '/product'
+    | '/roi-calculator'
     | '/security'
     | '/solutions'
     | '/use-cases'
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   IndustriesRoute: typeof IndustriesRoute
   PricingRoute: typeof PricingRoute
   ProductRoute: typeof ProductRoute
+  RoiCalculatorRoute: typeof RoiCalculatorRoute
   SecurityRoute: typeof SecurityRoute
   SolutionsRoute: typeof SolutionsRoute
   UseCasesRoute: typeof UseCasesRoute
@@ -307,6 +320,13 @@ declare module '@tanstack/react-router' {
       path: '/product'
       fullPath: '/product'
       preLoaderRoute: typeof ProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roi-calculator': {
+      id: '/roi-calculator'
+      path: '/roi-calculator'
+      fullPath: '/roi-calculator'
+      preLoaderRoute: typeof RoiCalculatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/security': {
@@ -398,6 +418,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndustriesRoute: IndustriesRoute,
   PricingRoute: PricingRoute,
   ProductRoute: ProductRoute,
+  RoiCalculatorRoute: RoiCalculatorRoute,
   SecurityRoute: SecurityRoute,
   SolutionsRoute: SolutionsRoute,
   UseCasesRoute: UseCasesRoute,
