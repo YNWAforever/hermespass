@@ -9,39 +9,46 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
 import { Route as DashboardAgentsRouteImport } from './routes/dashboard.agents'
 import { Route as DashboardApprovalsRouteImport } from './routes/dashboard.approvals'
 import { Route as DashboardComplianceRouteImport } from './routes/dashboard.compliance'
 import { Route as DashboardWalletsRouteImport } from './routes/dashboard.wallets'
 
-const DashboardIndexRoute = DashboardIndexRouteImport.update({
-  id: '/dashboard/',
-  path: '/dashboard/',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardAgentsRoute = DashboardAgentsRouteImport.update({
-  id: '/dashboard/agents',
-  path: '/dashboard/agents',
-  getParentRoute: () => rootRouteImport,
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardApprovalsRoute = DashboardApprovalsRouteImport.update({
-  id: '/dashboard/approvals',
-  path: '/dashboard/approvals',
-  getParentRoute: () => rootRouteImport,
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardComplianceRoute = DashboardComplianceRouteImport.update({
-  id: '/dashboard/compliance',
-  path: '/dashboard/compliance',
-  getParentRoute: () => rootRouteImport,
+  id: '/compliance',
+  path: '/compliance',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardWalletsRoute = DashboardWalletsRouteImport.update({
-  id: '/dashboard/wallets',
-  path: '/dashboard/wallets',
-  getParentRoute: () => rootRouteImport,
+  id: '/wallets',
+  path: '/wallets',
+  getParentRoute: () => DashboardRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/dashboard': typeof DashboardRouteWithChildren
   '/dashboard/agents': typeof DashboardAgentsRoute
   '/dashboard/approvals': typeof DashboardApprovalsRoute
   '/dashboard/compliance': typeof DashboardComplianceRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/dashboard': typeof DashboardRouteWithChildren
   '/dashboard/agents': typeof DashboardAgentsRoute
   '/dashboard/approvals': typeof DashboardApprovalsRoute
   '/dashboard/compliance': typeof DashboardComplianceRoute
@@ -66,6 +74,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/dashboard'
     | '/dashboard/agents'
     | '/dashboard/approvals'
     | '/dashboard/compliance'
@@ -80,6 +89,7 @@ export interface FileRouteTypes {
     | '/dashboard'
   id:
     | '__root__'
+    | '/dashboard'
     | '/dashboard/agents'
     | '/dashboard/approvals'
     | '/dashboard/compliance'
@@ -88,6 +98,57 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  DashboardRoute: typeof DashboardRouteWithChildren
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/agents': {
+      id: '/dashboard/agents'
+      path: '/agents'
+      fullPath: '/dashboard/agents'
+      preLoaderRoute: typeof DashboardAgentsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/approvals': {
+      id: '/dashboard/approvals'
+      path: '/approvals'
+      fullPath: '/dashboard/approvals'
+      preLoaderRoute: typeof DashboardApprovalsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/compliance': {
+      id: '/dashboard/compliance'
+      path: '/compliance'
+      fullPath: '/dashboard/compliance'
+      preLoaderRoute: typeof DashboardComplianceRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/wallets': {
+      id: '/dashboard/wallets'
+      path: '/wallets'
+      fullPath: '/dashboard/wallets'
+      preLoaderRoute: typeof DashboardWalletsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+  }
+}
+
+interface DashboardRouteChildren {
   DashboardAgentsRoute: typeof DashboardAgentsRoute
   DashboardApprovalsRoute: typeof DashboardApprovalsRoute
   DashboardComplianceRoute: typeof DashboardComplianceRoute
@@ -95,52 +156,20 @@ export interface RootRouteChildren {
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/dashboard/': {
-      id: '/dashboard/'
-      path: '/dashboard'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/agents': {
-      id: '/dashboard/agents'
-      path: '/dashboard/agents'
-      fullPath: '/dashboard/agents'
-      preLoaderRoute: typeof DashboardAgentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/approvals': {
-      id: '/dashboard/approvals'
-      path: '/dashboard/approvals'
-      fullPath: '/dashboard/approvals'
-      preLoaderRoute: typeof DashboardApprovalsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/compliance': {
-      id: '/dashboard/compliance'
-      path: '/dashboard/compliance'
-      fullPath: '/dashboard/compliance'
-      preLoaderRoute: typeof DashboardComplianceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/wallets': {
-      id: '/dashboard/wallets'
-      path: '/dashboard/wallets'
-      fullPath: '/dashboard/wallets'
-      preLoaderRoute: typeof DashboardWalletsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-  }
-}
-
-const rootRouteChildren: RootRouteChildren = {
+const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAgentsRoute: DashboardAgentsRoute,
   DashboardApprovalsRoute: DashboardApprovalsRoute,
   DashboardComplianceRoute: DashboardComplianceRoute,
   DashboardWalletsRoute: DashboardWalletsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+}
+
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
+)
+
+const rootRouteChildren: RootRouteChildren = {
+  DashboardRoute: DashboardRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

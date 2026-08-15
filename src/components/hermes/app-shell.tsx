@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   )}
                 />
                 {label}
-                {to === "/approvals" && holds > 0 ? (
+                {to === "/dashboard/approvals" && holds > 0 ? (
                   <span className="ml-auto rounded-full bg-risk-medium/15 px-1.5 py-0.5 font-mono text-[10px] text-risk-medium">
                     {holds}
                   </span>
