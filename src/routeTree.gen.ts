@@ -14,6 +14,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as ComplianceStandardsRouteImport } from './routes/compliance-standards'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as IndustriesRouteImport } from './routes/industries'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProductRouteImport } from './routes/product'
 import { Route as SolutionsRouteImport } from './routes/solutions'
@@ -47,6 +48,11 @@ const ContactRoute = ContactRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndustriesRoute = IndustriesRouteImport.update({
+  id: '/industries',
+  path: '/industries',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/compliance-standards': typeof ComplianceStandardsRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
   '/solutions': typeof SolutionsRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/compliance-standards': typeof ComplianceStandardsRoute
   '/contact': typeof ContactRoute
+  '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
   '/solutions': typeof SolutionsRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/compliance-standards': typeof ComplianceStandardsRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/industries': typeof IndustriesRoute
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
   '/solutions': typeof SolutionsRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/compliance-standards'
     | '/contact'
     | '/dashboard'
+    | '/industries'
     | '/pricing'
     | '/product'
     | '/solutions'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/compliance-standards'
     | '/contact'
+    | '/industries'
     | '/pricing'
     | '/product'
     | '/solutions'
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '/compliance-standards'
     | '/contact'
     | '/dashboard'
+    | '/industries'
     | '/pricing'
     | '/product'
     | '/solutions'
@@ -199,6 +211,7 @@ export interface RootRouteChildren {
   ComplianceStandardsRoute: typeof ComplianceStandardsRoute
   ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  IndustriesRoute: typeof IndustriesRoute
   PricingRoute: typeof PricingRoute
   ProductRoute: typeof ProductRoute
   SolutionsRoute: typeof SolutionsRoute
@@ -240,6 +253,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/industries': {
+      id: '/industries'
+      path: '/industries'
+      fullPath: '/industries'
+      preLoaderRoute: typeof IndustriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -334,6 +354,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComplianceStandardsRoute: ComplianceStandardsRoute,
   ContactRoute: ContactRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  IndustriesRoute: IndustriesRoute,
   PricingRoute: PricingRoute,
   ProductRoute: ProductRoute,
   SolutionsRoute: SolutionsRoute,
