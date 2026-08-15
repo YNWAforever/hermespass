@@ -215,9 +215,9 @@ function SiteHeader() {
               type="button"
               aria-expanded={active === group.id}
               onMouseEnter={() => setActive(group.id)}
-              onClick={() =>
-                setActive((v) => (v === group.id ? null : group.id))
-              }
+              onFocus={() => setActive(group.id)}
+              onClick={() => setActive(group.id)}
+
               className={cn(
                 "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm transition-colors",
                 active === group.id
