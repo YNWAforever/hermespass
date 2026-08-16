@@ -38,6 +38,17 @@ async function applyMigration(pool: Pool): Promise<void> {
   try {
     await client.query("DROP SCHEMA public CASCADE");
     await client.query("CREATE SCHEMA public");
+    await client.query(`DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hermes_app') THEN
+          CREATE ROLE hermes_app LOGIN BYPASSRLS CREATEDB CREATEROLE;
+        END IF;
+      END
+    $$`);
+    await client.query("ALTER ROLE hermes_app BYPASSRLS CREATEDB CREATEROLE");
+    await client.query("GRANT CREATE ON SCHEMA public TO PUBLIC");
+    await client.query("GRANT CREATE ON SCHEMA public TO hermes_app");
+
     for (const statement of migration.split("--> statement-breakpoint")) {
       const sql = statement.trim();
       if (sql) await client.query(sql);
@@ -138,47 +149,54 @@ dbTest("PostgreSQL identity and audit controls", () => {
   });
 
   it("applies the checked-in migration with forced RLS, restricted role, functions, and triggers", async () => {
-    const [tables, functions, role, schemaPrivilege, ownedObjects, triggers] = await Promise.all([
-      pool.query(
-        "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY($1::text[]) ORDER BY relname",
-        [
+    const [tables, functions, role, publicCreate, schemaPrivilege, ownedObjects, triggers] =
+      await Promise.all([
+        pool.query(
+          "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY($1::text[]) ORDER BY relname",
           [
-            "organizations",
-            "org_members",
-            "issuer_keys",
-            "agents",
-            "agent_keys",
-            "agent_audit_logs",
+            [
+              "organizations",
+              "org_members",
+              "issuer_keys",
+              "agents",
+              "agent_keys",
+              "agent_audit_logs",
+            ],
           ],
-        ],
-      ),
-      pool.query("SELECT proname FROM pg_proc WHERE proname = ANY($1::text[])", [
-        [
-          "hermes_current_user_id",
-          "hermes_audit_hash",
-          "hermes_audit_before_insert",
-          "hermes_audit_immutable",
-          "hermes_verify_audit_chain",
-          "hermes_public_issuer_key",
-          "hermes_public_issuer_key_for_fragment",
-          "hermes_public_agent",
-          "hermes_public_agent_by_did",
-        ],
-      ]),
-      pool.query(
-        "SELECT rolbypassrls, rolcreatedb, rolcreaterole, rolsuper FROM pg_roles WHERE rolname = 'hermes_app'",
-      ),
-      pool.query("SELECT has_schema_privilege('hermes_app', 'public', 'CREATE') AS can_create"),
-      pool.query(
-        `SELECT count(*)::int AS count
+        ),
+        pool.query("SELECT proname FROM pg_proc WHERE proname = ANY($1::text[])", [
+          [
+            "hermes_current_user_id",
+            "hermes_audit_hash",
+            "hermes_audit_before_insert",
+            "hermes_audit_immutable",
+            "hermes_verify_audit_chain",
+            "hermes_public_issuer_key",
+            "hermes_public_issuer_key_for_fragment",
+            "hermes_public_agent",
+            "hermes_public_agent_by_did",
+          ],
+        ]),
+        pool.query(
+          "SELECT rolbypassrls, rolcreatedb, rolcreaterole, rolsuper FROM pg_roles WHERE rolname = 'hermes_app'",
+        ),
+        pool.query(
+          `SELECT count(*)::int AS count
+         FROM pg_namespace n
+         CROSS JOIN LATERAL aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) acl
+         WHERE n.nspname = 'public' AND acl.grantee = 0 AND acl.privilege_type = 'CREATE'`,
+        ),
+        pool.query("SELECT has_schema_privilege('hermes_app', 'public', 'CREATE') AS can_create"),
+        pool.query(
+          `SELECT count(*)::int AS count
          FROM pg_class
          WHERE relnamespace = 'public'::regnamespace
            AND relowner = (SELECT oid FROM pg_roles WHERE rolname = 'hermes_app')`,
-      ),
-      pool.query("SELECT tgname FROM pg_trigger WHERE tgname = ANY($1::text[])", [
-        ["agent_audit_before_insert", "agent_audit_immutable"],
-      ]),
-    ]);
+        ),
+        pool.query("SELECT tgname FROM pg_trigger WHERE tgname = ANY($1::text[])", [
+          ["agent_audit_before_insert", "agent_audit_immutable"],
+        ]),
+      ]);
 
     expect(tables.rows).toHaveLength(6);
     expect(tables.rows.every((table) => table.relrowsecurity && table.relforcerowsecurity)).toBe(
@@ -200,6 +218,7 @@ dbTest("PostgreSQL identity and audit controls", () => {
     expect(role.rows).toEqual([
       { rolbypassrls: false, rolcreatedb: false, rolcreaterole: false, rolsuper: false },
     ]);
+    expect(publicCreate.rows).toEqual([{ count: 0 }]);
     expect(schemaPrivilege.rows).toEqual([{ can_create: false }]);
     expect(ownedObjects.rows).toEqual([{ count: 0 }]);
     expect(new Set(triggers.rows.map((row) => row.tgname))).toEqual(

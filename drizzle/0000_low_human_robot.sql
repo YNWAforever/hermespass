@@ -125,7 +125,9 @@ BEGIN
 END
 $$;--> statement-breakpoint
 
-ALTER ROLE hermes_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;--> statement-breakpoint
+ALTER ROLE hermes_app LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;--> statement-breakpoint
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;--> statement-breakpoint
+REVOKE CREATE ON SCHEMA public FROM hermes_app;--> statement-breakpoint
 GRANT USAGE ON SCHEMA public TO hermes_app;--> statement-breakpoint
 GRANT SELECT ON organizations, org_members, agents, agent_keys, issuer_keys, agent_audit_logs TO hermes_app;--> statement-breakpoint
 GRANT INSERT, UPDATE ON agents TO hermes_app;--> statement-breakpoint

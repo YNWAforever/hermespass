@@ -3,7 +3,6 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { agentAuditLogs, agents } from "@/db/schema";
 import { withActorTransaction } from "@/lib/auth/authorization";
 import type { Actor } from "@/lib/auth/authorization";
-import { verifyAuditChain, type AuditChainEntry } from "@/lib/audit/hash";
 
 export type AuditDto = {
   id: number;
@@ -62,28 +61,7 @@ export async function verifyAudit(actor: Actor) {
       };
     }
 
-    const rows = await tx
-      .select()
-      .from(agentAuditLogs)
-      .where(eq(agentAuditLogs.organizationId, actor.organizationId))
-      .orderBy(asc(agentAuditLogs.chainPosition));
-    const entries: AuditChainEntry[] = rows.map((row) => ({
-      chainPosition: row.chainPosition,
-      organizationId: row.organizationId,
-      agentId: row.agentId,
-      actorType: row.actorType,
-      actorId: row.actorId,
-      action: row.action,
-      summary: row.summary,
-      decision: row.decision,
-      tool: row.tool,
-      amountCents: row.amountCents,
-      payload: row.payload,
-      occurredAt: row.occurredAt.toISOString(),
-      prevHash: hex(row.prevHash) || null,
-      hash: hex(row.hash),
-    }));
-    return verifyAuditChain(entries);
+    throw new Error("AUDIT_VERIFICATION_RESULT_MISSING");
   });
 }
 
