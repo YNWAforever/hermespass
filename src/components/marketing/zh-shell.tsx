@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { ArrowRight, Menu, ShieldCheck, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { LOCALE_LABELS, localize, useLocale } from "@/lib/i18n/locale";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { LOCALE_LABELS, localize } from "@/lib/i18n/locale";
 import { ZH_UI } from "@/lib/i18n/zh-content";
 import { cn } from "@/lib/utils";
 

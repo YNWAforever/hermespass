@@ -2,7 +2,8 @@
 
 import { Check } from "lucide-react";
 import { useState } from "react";
-import { localize, useLocale } from "@/lib/i18n/locale";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { localize } from "@/lib/i18n/locale";
 import { ZH_CONTACT } from "@/lib/i18n/zh-content";
 import { ZhHeading, ZhSection as Wrap, ZhShell } from "@/components/marketing/zh-shell";
 import { cn } from "@/lib/utils";

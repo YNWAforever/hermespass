@@ -1,5 +1,6 @@
 import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
-import { isZhLocale, LocaleProvider } from "@/lib/i18n/locale";
+import { LocaleProvider } from "@/lib/i18n/locale-context";
+import { isZhLocale } from "@/lib/i18n/locale";
 
 export const Route = createFileRoute("/$locale")({
   beforeLoad: ({ params }) => {

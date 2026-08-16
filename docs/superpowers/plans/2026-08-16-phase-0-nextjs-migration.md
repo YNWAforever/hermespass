@@ -149,13 +149,13 @@ export function useLocale(): ZhLocale;
 export function zhMetadata(locale: string, slug: string): Metadata;
 ```
 
-- [ ] Write failing unit tests for locale validation, Simplified/Traditional conversion, metadata locale values, supported slugs, and invalid locale/slug 404s.
-- [ ] Keep conversion, constants, types, and validation in server-safe `locale.ts`; put only React context/hooks in client-only `locale-context.tsx`.
-- [ ] Update Chinese components to import pure functions and context separately.
-- [ ] Generate only `zh-hans` and `zh-hant`; set `dynamicParams = false` for locale and slug segments.
-- [ ] Preserve 13 routes per locale, including contact and ROI.
-- [ ] Verify 26 Chinese routes return 200, `/zh-xx` and unknown slugs return 404, Traditional Chinese conversion renders, and all language-switcher destinations are correct.
-- [ ] Commit the locale slice.
+- [x] Write failing unit tests for locale validation, Simplified/Traditional conversion, metadata locale values, supported slugs, and invalid locale/slug 404s.
+- [x] Keep conversion, constants, types, and validation in server-safe `locale.ts`; put only React context/hooks in client-only `locale-context.tsx`.
+- [x] Update Chinese components to import pure functions and context separately.
+- [x] Generate only `zh-hans` and `zh-hant`; set `dynamicParams = false` for locale and slug segments.
+- [x] Preserve 13 routes per locale, including contact and ROI.
+- [x] Verify 26 Chinese routes return 200, `/zh-xx` and unknown slugs return 404, Traditional Chinese conversion renders, and all language-switcher destinations are correct.
+- [x] Commit the locale slice.
 
 ### Task 5: Port the dashboard without metadata loss
 

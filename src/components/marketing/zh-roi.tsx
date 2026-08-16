@@ -2,7 +2,8 @@
 
 import { Calculator, Clock, DollarSign, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
-import { localize, useLocale } from "@/lib/i18n/locale";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { localize } from "@/lib/i18n/locale";
 import { ZH_ROI } from "@/lib/i18n/zh-content";
 import { ZhCtaBand, ZhHeading, ZhSection as Wrap, ZhShell } from "@/components/marketing/zh-shell";
 import { Slider } from "@/components/ui/slider";

@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowRight, Check } from "lucide-react";
-import { localize, useLocale } from "@/lib/i18n/locale";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { localize } from "@/lib/i18n/locale";
 import { ZH_PAGES, ZH_UI, type ZhPageContent, type ZhSection } from "@/lib/i18n/zh-content";
 import {
   LocaleLink,
