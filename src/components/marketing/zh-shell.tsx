@@ -1,4 +1,6 @@
-import { Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { ArrowRight, Menu, ShieldCheck, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { LOCALE_LABELS, localize, useLocale } from "@/lib/i18n/locale";
@@ -18,7 +20,7 @@ export function LocaleLink({
   onClick?: () => void;
 }) {
   return (
-    <Link to={href as never} className={className} onClick={onClick}>
+    <Link href={href} className={className} {...(onClick ? { onClick } : {})}>
       {children}
     </Link>
   );
@@ -79,9 +81,7 @@ function ZhHeader() {
           <span className="grid size-8 place-items-center rounded-lg border border-emerald-accent/40 bg-emerald-accent/10 text-emerald-accent shadow-glow-emerald">
             <ShieldCheck className="size-4" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">
-            HermesPass
-          </span>
+          <span className="text-sm font-semibold tracking-tight">HermesPass</span>
         </LocaleLink>
 
         <nav className="ml-6 hidden items-center gap-1 lg:flex">
@@ -166,9 +166,7 @@ function ZhFooter() {
         </div>
 
         <div>
-          <p className="text-xs font-semibold tracking-wide uppercase">
-            {ui.footerPlatform}
-          </p>
+          <p className="text-xs font-semibold tracking-wide uppercase">{ui.footerPlatform}</p>
           <ul className="mt-3 space-y-2">
             {ui.nav.slice(0, 5).map((l) => (
               <li key={l.slug}>
@@ -192,9 +190,7 @@ function ZhFooter() {
         </div>
 
         <div>
-          <p className="text-xs font-semibold tracking-wide uppercase">
-            {ui.footerCompany}
-          </p>
+          <p className="text-xs font-semibold tracking-wide uppercase">{ui.footerCompany}</p>
           <ul className="mt-3 space-y-2">
             {[
               { slug: "security", label: ui.nav[5]?.label ?? "信任中心" },
@@ -218,9 +214,7 @@ function ZhFooter() {
         </div>
 
         <div>
-          <p className="text-xs font-semibold tracking-wide uppercase">
-            {ui.footerStandards}
-          </p>
+          <p className="text-xs font-semibold tracking-wide uppercase">{ui.footerStandards}</p>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             {ui.standards.map((s) => (
               <li key={s}>{s}</li>
@@ -237,13 +231,7 @@ function ZhFooter() {
   );
 }
 
-export function ZhSection({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+export function ZhSection({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <section className={cn("px-5 py-16 sm:py-20", className)}>
       <div className="mx-auto max-w-6xl">{children}</div>
@@ -275,13 +263,7 @@ export function ZhHeading({
   );
 }
 
-export function ZhCtaBand({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+export function ZhCtaBand({ title, description }: { title: string; description: string }) {
   const { locale, ui } = useZhUi();
   return (
     <ZhSection>

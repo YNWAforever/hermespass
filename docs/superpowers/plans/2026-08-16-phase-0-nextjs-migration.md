@@ -62,9 +62,9 @@ git commit -m "docs: record Next.js App Router migration"
 - Create `src/components/errors/error-panel.tsx`
 - Modify the three actual router consumers: `app-shell.tsx`, `site-shell.tsx`, `zh-shell.tsx`
 
-- [ ] First add failing tests for root rendering, 404/error fallback, link destinations, dashboard active navigation, and Pricing’s active state.
-- [ ] Add Next 16.3.1 and the Tailwind PostCSS, Next ESLint, Vitest, Testing Library, Playwright, `pixelmatch`, and `pngjs` dependencies. Retain TanStack/Vite packages temporarily so legacy files continue type-checking during the incremental port.
-- [ ] Set:
+- [x] First add failing tests for root rendering, 404/error fallback, link destinations, dashboard active navigation, and Pricing’s active state.
+- [x] Add Next 16.3.1 and the Tailwind PostCSS, Next ESLint, Vitest, Testing Library, Playwright, `pixelmatch`, and `pngjs` dependencies. Retain TanStack/Vite packages temporarily so legacy files continue type-checking during the incremental port.
+- [x] Set:
 
 ```json
 {
@@ -87,19 +87,19 @@ git commit -m "docs: record Next.js App Router migration"
 }
 ```
 
-- [ ] Configure `eslint-config-next/core-web-vitals`, `eslint-config-next/typescript`, Prettier compatibility, and ignores for `.next`, worktrees, Playwright output, and generated declarations using the [official flat-config shape](https://nextjs.org/docs/app/api-reference/config/eslint).
-- [ ] Copy `src/styles.css` into `src/app/globals.css` and change Tailwind’s manual source from `@source "../src";` to `@source "../";`; the original path would otherwise resolve to nonexistent `src/src` after the move.
-- [ ] Set `components.json` to `"rsc": true` and `"css": "src/app/globals.css"`.
-- [ ] Port root metadata/providers and add both route-level and root-layout error boundaries through `ErrorPanel`; retire Lovable-specific reporting from the new boundary.
-- [ ] Explicitly migrate the three shared router files:
+- [x] Configure `eslint-config-next/core-web-vitals`, `eslint-config-next/typescript`, Prettier compatibility, and ignores for `.next`, worktrees, Playwright output, and generated declarations using the [official flat-config shape](https://nextjs.org/docs/app/api-reference/config/eslint).
+- [x] Copy `src/styles.css` into `src/app/globals.css` and change Tailwind’s manual source from `@source "../src";` to `@source "../";`; the original path would otherwise resolve to nonexistent `src/src` after the move.
+- [x] Set `components.json` to `"rsc": true` and `"css": "src/app/globals.css"`.
+- [x] Port root metadata/providers and add both route-level and root-layout error boundaries through `ErrorPanel`; retire Lovable-specific reporting from the new boundary.
+- [x] Explicitly migrate the three shared router files:
 
   - `app-shell.tsx`: `next/link`, `usePathname`, `href`, and existing exact/prefix active matching.
   - `site-shell.tsx`: direct `/zh-hant` and `/zh-hans` links; replace unsupported `activeProps` with `usePathname` plus `cn`.
   - `zh-shell.tsx`: `next/link` and plain string `href`.
 
-- [ ] Mark the real client roots explicitly: the three shells, Chinese page/contact/ROI components, Hermes store, `use-mobile`, and hook-owning UI modules (`carousel`, `chart`, `form`, `input-otp`, `sidebar`).
-- [ ] Port `/` from `src/routes/index.tsx`, retaining its exact metadata and body.
-- [ ] Verify `bun run test`, `bun run typecheck`, `bun run build`, `/` = 200, unknown route = 404, then commit.
+- [x] Mark the real client roots explicitly: the three shells, Chinese page/contact/ROI components, Hermes store, `use-mobile`, and hook-owning UI modules (`carousel`, `chart`, `form`, `input-otp`, `sidebar`).
+- [x] Port `/` from `src/routes/index.tsx`, retaining its exact metadata and body.
+- [x] Verify `bun run test`, `bun run typecheck`, `bun run build`, `/` = 200, unknown route = 404, then commit.
 
 ### Task 3: Port all English marketing routes
 
