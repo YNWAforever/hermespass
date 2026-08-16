@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/hermes/app-shell";
 import { AccessDenied } from "@/components/hermes/access-denied";
 import { ActorProvider } from "@/components/auth/actor-context";
+import { AgentFixtureProvider } from "@/lib/agents/fixture-context";
 import { getCurrentActor } from "@/lib/auth/authorization";
+import { isE2eUser } from "@/lib/auth/e2e-adapter";
 import { getSessionUser } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +17,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const actor = await getCurrentActor();
   if (!actor) return <AccessDenied />;
   return (
-    <ActorProvider actor={actor}>
-      <AppShell actor={actor}>{children}</AppShell>
-    </ActorProvider>
+    <AgentFixtureProvider enabled={isE2eUser(actor.userId)}>
+      <ActorProvider actor={actor}>
+        <AppShell actor={actor}>{children}</AppShell>
+      </ActorProvider>
+    </AgentFixtureProvider>
   );
 }

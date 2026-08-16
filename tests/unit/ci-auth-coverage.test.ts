@@ -20,7 +20,11 @@ describe("mandatory authenticated dashboard coverage", () => {
     const setup = source("tests/e2e/global-setup.ts");
     expect(setup).toContain('HERMESPASS_E2E_ADAPTER: "1"');
     expect(setup).toContain("HERMESPASS_E2E_AUTH_SECRET");
-    expect(setup).toContain('NEXT_PUBLIC_HERMESPASS_E2E_ADAPTER: "1"');
+    expect(setup).not.toContain("NEXT_PUBLIC_HERMESPASS_E2E_ADAPTER");
+    expect(source("src/lib/agents/client.ts")).not.toContain("NEXT_PUBLIC_HERMESPASS_E2E_ADAPTER");
+    expect(source("src/app/dashboard/layout.tsx")).toContain(
+      "<AgentFixtureProvider enabled={isE2eUser(actor.userId)}>",
+    );
     expect(source("tests/e2e/support/auth-state.ts")).not.toContain("phase1-local-e2e");
   });
 

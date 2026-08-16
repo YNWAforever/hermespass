@@ -24,7 +24,8 @@ describe("additive Phase 1 security migration", () => {
     expect(sql).toContain("agent_audit_logs_agent_organization_fk");
     expect(sql).toContain("pg_auth_members");
     expect(sql).toContain("hermes_audit_hash_v3");
-    expect(sql).not.toContain("CREATE OR REPLACE FUNCTION hermes_audit_hash(");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION public.hermes_audit_hash(");
+    expect(sql).toContain("SET search_path = pg_catalog, public, pg_temp");
     expect(sql).toContain("hermes_revoke_agent");
     expect(sql).toContain("hermes_public_issuer_keys");
   });

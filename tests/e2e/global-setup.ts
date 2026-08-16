@@ -116,7 +116,6 @@ export default async function globalSetup() {
         HERMESPASS_SERVER_PORT: new URL(nextUrl).port || "3101",
         HERMESPASS_E2E_ADAPTER: "1",
         HERMESPASS_E2E_AUTH_SECRET: e2eAuthSecret,
-        NEXT_PUBLIC_HERMESPASS_E2E_ADAPTER: "1",
       },
     },
   ];

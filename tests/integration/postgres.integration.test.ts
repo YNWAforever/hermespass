@@ -120,6 +120,25 @@ async function withAppUser<T>(
   }
 }
 
+async function withAppUserRollback<T>(
+  pool: Pool,
+  userId: string,
+  operation: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+
+  try {
+    await client.query("SET ROLE hermes_app");
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('hermes.user_id', $1, true)", [userId]);
+    return await operation(client);
+  } finally {
+    await client.query("ROLLBACK").catch(() => undefined);
+    await client.query("RESET ROLE").catch(() => undefined);
+    client.release();
+  }
+}
+
 async function insertAgent(
   client: SqlClient,
   organizationId: string,
@@ -445,6 +464,140 @@ dbTest("PostgreSQL identity and audit controls", () => {
     expect(new Set(triggers.rows.map((row) => row.tgname))).toEqual(
       new Set(["agent_audit_before_insert", "agent_audit_immutable"]),
     );
+  });
+
+  it("pins every surviving application routine behind an explicit safe search path", async () => {
+    const routineNames = [
+      "hermes_current_user_id",
+      "hermes_audit_hash",
+      "hermes_audit_hash_v3",
+      "hermes_audit_before_insert",
+      "hermes_audit_immutable",
+      "hermes_verify_audit_chain",
+      "hermes_revoke_agent",
+      "hermes_public_issuer_key",
+      "hermes_public_issuer_key_for_fragment",
+      "hermes_public_issuer_keys",
+      "hermes_public_agent",
+      "hermes_public_agent_by_did",
+    ];
+    const routines = await pool.query<{ name: string; settings: string[] | null }>(
+      `SELECT procedure.proname AS name, procedure.proconfig AS settings
+       FROM pg_proc procedure
+       JOIN pg_namespace namespace ON namespace.oid = procedure.pronamespace
+       WHERE namespace.nspname = 'public' AND procedure.proname = ANY($1::text[])
+       ORDER BY procedure.proname`,
+      [routineNames],
+    );
+
+    expect(routines.rows).toHaveLength(routineNames.length);
+    expect(
+      routines.rows.every(({ settings }) =>
+        settings?.includes("search_path=pg_catalog, public, pg_temp"),
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores an app-role temporary audit relation during authoritative append", async () => {
+    const shadowAction = `audit.shadow-${suffix()}`;
+    await withAppUserRollback(pool, fixtures.adminId, async (client) => {
+      await client.query(
+        `CREATE TEMP TABLE agent_audit_logs (
+          organization_id uuid, chain_position bigint, hash bytea
+        ) ON COMMIT DROP`,
+      );
+      await client.query(
+        "INSERT INTO pg_temp.agent_audit_logs VALUES ($1, 900, decode('aa', 'hex'))",
+        [fixtures.organizationId],
+      );
+      await client.query(
+        `INSERT INTO public.agent_audit_logs (
+          organization_id, actor_type, actor_id, action, summary
+        ) VALUES ($1, 'user', $2, $3, 'shadow-resistant append')`,
+        [fixtures.organizationId, fixtures.adminId, shadowAction],
+      );
+      const appended = await client.query<{
+        chain_position: string;
+        previous_hash: string | null;
+      }>(
+        `SELECT chain_position, encode(prev_hash, 'hex') AS previous_hash
+         FROM public.agent_audit_logs WHERE action = $1`,
+        [shadowAction],
+      );
+      expect(appended.rows).toEqual([{ chain_position: "1", previous_hash: null }]);
+    });
+  });
+
+  it("ignores app-role membership and audit shadows during verification", async () => {
+    const unauthorizedVerification = await withAppUser(pool, fixtures.viewerId, async (client) => {
+      await client.query(
+        "CREATE TEMP TABLE org_members (organization_id uuid, user_id text, role text) ON COMMIT DROP",
+      );
+      await client.query("INSERT INTO pg_temp.org_members VALUES ($1, $2, 'admin')", [
+        fixtures.otherOrganizationId,
+        fixtures.viewerId,
+      ]);
+      await client.query(
+        "CREATE TEMP TABLE agent_audit_logs (organization_id uuid) ON COMMIT DROP",
+      );
+      return client.query<{ checked: string; valid: boolean }>(
+        "SELECT checked, valid FROM public.hermes_verify_audit_chain($1)",
+        [fixtures.otherOrganizationId],
+      );
+    });
+    expect(unauthorizedVerification.rows).toEqual([{ checked: "0", valid: false }]);
+  });
+
+  it("ignores an app-role membership shadow during revocation authorization", async () => {
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.viewerId, async (client) => {
+          await client.query(
+            "CREATE TEMP TABLE org_members (organization_id uuid, user_id text, role text) ON COMMIT DROP",
+          );
+          await client.query("INSERT INTO pg_temp.org_members VALUES ($1, $2, 'admin')", [
+            fixtures.organizationId,
+            fixtures.viewerId,
+          ]);
+          await client.query("SELECT changed FROM public.hermes_revoke_agent($1, $2, $3)", [
+            fixtures.agentId,
+            fixtures.organizationId,
+            fixtures.viewerId,
+          ]);
+        }),
+      "42501",
+    );
+  });
+
+  it("ignores an app-role issuer relation shadow in a legacy public projection", async () => {
+    const fakeDid = `did:web:shadow-${suffix()}.example`;
+    const issuerProjection = await withAppUser(pool, fixtures.viewerId, async (client) => {
+      await client.query(
+        `CREATE TEMP TABLE issuer_keys (
+          did text, key_fragment text, public_jwk jsonb, thumbprint text,
+          status public.key_status, created_at timestamptz
+        ) ON COMMIT DROP`,
+      );
+      await client.query(
+        `INSERT INTO pg_temp.issuer_keys
+         VALUES ($1, 'attacker', '{"kty":"OKP","crv":"Ed25519","x":"attacker"}',
+           'attacker-thumbprint', 'active', now())`,
+        [fakeDid],
+      );
+      return client.query<{ key_fragment: string }>(
+        "SELECT key_fragment FROM public.hermes_public_issuer_key($1)",
+        [fakeDid],
+      );
+    });
+    expect(issuerProjection.rows).toEqual([]);
+  });
+
+  it("ignores an app-role agent relation shadow in the public projection", async () => {
+    const agentProjection = await withAppUser(pool, fixtures.viewerId, async (client) => {
+      await client.query("CREATE TEMP TABLE agents (slug text) ON COMMIT DROP");
+      return client.query("SELECT id FROM public.hermes_public_agent('missing-shadow-agent')");
+    });
+    expect(agentProjection.rows).toEqual([]);
   });
 
   it("enforces one membership per user and nonnegative agent spend caps", async () => {

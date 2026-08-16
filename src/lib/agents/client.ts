@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { buildChain, SEED_AGENTS, SEED_EVENTS } from "@/lib/hermes-data";
+import { useAgentFixtureMode } from "@/lib/agents/fixture-context";
 import type { AgentDto } from "@/lib/agents/types";
 
 type ApiError = Error & {
@@ -28,51 +29,47 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
   return body.data;
 }
 
-const usesFixtureData =
-  process.env["NODE_ENV"] === "test" || process.env.NEXT_PUBLIC_HERMESPASS_E2E_ADAPTER === "1";
-const testAgentData = usesFixtureData
-  ? {
-      agents: SEED_AGENTS.map((agent) => ({
-        ...agent,
-        databaseId: agent.id,
-        orgSlug: "test-org",
-        credentialId: `urn:uuid:${agent.slug}`,
-        credentialJws: "",
-        governanceNotes: null,
-      })) as AgentDto[],
-    }
-  : undefined;
-const testAuditData = usesFixtureData
-  ? {
-      entries: buildChain(SEED_EVENTS).map((entry) => ({
-        id: entry.index,
-        timestamp: entry.timestamp,
-        agentDid: entry.agentSlug,
-        agentSlug: entry.agentSlug,
-        action: entry.action,
-        summary: entry.action,
-        payloadHash: entry.payloadHash,
-        previousHash: entry.prevHash,
-        decision: entry.decision,
-        tool: entry.action,
-      })),
-    }
-  : undefined;
+const testAgentData = {
+  agents: SEED_AGENTS.map((agent) => ({
+    ...agent,
+    databaseId: agent.id,
+    orgSlug: "test-org",
+    credentialId: `urn:uuid:${agent.slug}`,
+    credentialJws: "",
+    governanceNotes: null,
+  })) as AgentDto[],
+};
+const testAuditData = {
+  entries: buildChain(SEED_EVENTS).map((entry) => ({
+    id: entry.index,
+    timestamp: entry.timestamp,
+    agentDid: entry.agentSlug,
+    agentSlug: entry.agentSlug,
+    action: entry.action,
+    summary: entry.action,
+    payloadHash: entry.payloadHash,
+    previousHash: entry.prevHash,
+    decision: entry.decision,
+    tool: entry.action,
+  })),
+};
 
 export function useAgents() {
+  const usesFixtureData = useAgentFixtureMode();
   return useQuery({
     queryKey: ["agents"],
     queryFn: () =>
-      testAgentData
+      usesFixtureData
         ? Promise.resolve(testAgentData)
         : requestJson<{ agents: AgentDto[] }>("/api/agents"),
-    ...(testAgentData ? { initialData: testAgentData } : {}),
+    ...(usesFixtureData ? { initialData: testAgentData } : {}),
     staleTime: 15_000,
   });
 }
 
 export function useIssueAgent() {
   const client = useQueryClient();
+  const usesFixtureData = useAgentFixtureMode();
   return useMutation({
     mutationFn: async (input: {
       name: string;
@@ -148,16 +145,17 @@ export function useRevokeAgent() {
   });
 }
 
-export type AuditEntry = NonNullable<typeof testAuditData>["entries"][number];
+export type AuditEntry = (typeof testAuditData)["entries"][number];
 
 export function useAudit() {
+  const usesFixtureData = useAgentFixtureMode();
   return useQuery({
     queryKey: ["audit"],
     queryFn: () =>
-      testAuditData
+      usesFixtureData
         ? Promise.resolve(testAuditData)
         : requestJson<{ entries: AuditEntry[] }>("/api/audit"),
-    ...(testAuditData ? { initialData: testAuditData } : {}),
+    ...(usesFixtureData ? { initialData: testAuditData } : {}),
     staleTime: 15_000,
   });
 }
@@ -169,13 +167,14 @@ export type AuditVerification = {
 };
 
 export function useAuditVerification() {
+  const usesFixtureData = useAgentFixtureMode();
   return useQuery({
     queryKey: ["audit", "verification"],
     queryFn: () =>
       usesFixtureData
         ? Promise.resolve<AuditVerification>({
             valid: true,
-            checked: testAuditData?.entries.length ?? 0,
+            checked: testAuditData.entries.length,
             firstInvalid: null,
           })
         : requestJson<AuditVerification>("/api/audit/verify"),

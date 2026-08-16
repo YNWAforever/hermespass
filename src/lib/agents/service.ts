@@ -18,6 +18,7 @@ import { agentDidForOrigin, didWebForOrigin } from "@/lib/identity/did";
 import { generateEd25519KeyPair } from "@/lib/identity/keys";
 import {
   buildPassportCredential,
+  CredentialTemporalError,
   oneCalendarYearLater,
   signPassportCredential,
   verifyPassportCredential,
@@ -396,7 +397,7 @@ export async function verifyPublicAgent(slug: string) {
       },
     );
     const now = Date.now();
-    const expired = new Date(verified.credential.validUntil).getTime() < now;
+    const expired = new Date(verified.credential.validUntil).getTime() <= now;
     const status = expired ? "expired" : agent.status;
     return {
       valid: !expired && agent.status === "active",
@@ -407,7 +408,18 @@ export async function verifyPublicAgent(slug: string) {
       credential: verified.credential,
       checks: { signature: true, issuer: true, expiry: !expired, storedStatus: agent.status },
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof CredentialTemporalError) {
+      return {
+        valid: false,
+        status: error.reason,
+        did: agent.did,
+        credentialId: agent.credential_id,
+        issuer: error.credential.issuer,
+        credential: error.credential,
+        checks: { signature: true, issuer: true, expiry: false, storedStatus: agent.status },
+      };
+    }
     return { valid: false, status: "invalid", did: agent.did, checks: { signature: false } };
   }
 }
@@ -438,7 +450,7 @@ export async function verifyPublicAgentByDid(did: string) {
         expiresAt: agent.expires_at,
       },
     );
-    const expired = new Date(verified.credential.validUntil).getTime() < Date.now();
+    const expired = new Date(verified.credential.validUntil).getTime() <= Date.now();
     const status = expired ? "expired" : agent.status;
     return {
       valid: !expired && agent.status === "active",
@@ -449,7 +461,18 @@ export async function verifyPublicAgentByDid(did: string) {
       credential: verified.credential,
       checks: { signature: true, issuer: true, expiry: !expired, storedStatus: agent.status },
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof CredentialTemporalError) {
+      return {
+        valid: false,
+        status: error.reason,
+        did: agent.did,
+        credentialId: agent.credential_id,
+        issuer: error.credential.issuer,
+        credential: error.credential,
+        checks: { signature: true, issuer: true, expiry: false, storedStatus: agent.status },
+      };
+    }
     return { valid: false, status: "invalid", did: agent.did, checks: { signature: false } };
   }
 }

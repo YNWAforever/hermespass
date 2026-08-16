@@ -145,8 +145,8 @@ harness applies migrations in journal order.
 | `bun run format:check` | PASS — all matched files use Prettier style. |
 | `bun run lint` | PASS. |
 | `bun run typecheck` | PASS. |
-| `bun run test` | PASS — 16 files passed, 2 DB files skipped; 118 tests passed, 21 skipped. |
-| `DATABASE_URL_TEST=... bun run test:db` | PASS — 1 file, 21/21 tests against disposable local PostgreSQL 18. |
+| `bun run test` | PASS — 17 files passed, 2 DB files skipped; 119 tests passed, 27 skipped. |
+| `DATABASE_URL_TEST=... bun run test:db` | PASS — 1 file, 27/27 tests against disposable local PostgreSQL 18. |
 | `bun x drizzle-kit check` | PASS — `Everything's fine`. |
 | `bun run build` without provider/database variables | PASS — optimized Next 16.3.1 production build, 42 static pages generated. |
 | Focused authenticated Playwright | PASS — 9/9. |
@@ -187,3 +187,58 @@ by the GREEN evidence above.
 - Hosted Auth/Neon smoke and full visual-parity publication evidence were not run;
   focused local authenticated browser behavior, the provider-free production build,
   and all deterministic local gates passed.
+
+## Independent follow-up review wave
+
+A second whole-slice review found one Important PostgreSQL name-resolution issue
+and two Minor correctness/isolation issues after commit `d87d328`. All three were
+handled locally before any hosted migration was attempted.
+
+### Defensive name-resolution hardening
+
+- RED: the PostgreSQL 18 suite ran 27 tests with **6 failed / 21 passed**. The
+  failures proved that surviving SQL routines did not pin an explicit safe search
+  path and that session-local same-named relations could change audit append,
+  verification, revocation authorization, legacy issuer projection, and public
+  agent projection behavior.
+- GREEN: additive migration `0001` now recreates or defines all 12 surviving Phase
+  1 routines with `search_path = pg_catalog, public, pg_temp` and explicit
+  `public` relation/function references. The original hosted `0000` remains
+  unchanged, and the complete PostgreSQL 18 suite passes **27/27**.
+- Historical v2 hashing was recreated byte-for-byte except for pinned object
+  resolution; its compatibility regression remains green. New rows continue to
+  use UTC-canonical v3 hashing.
+
+### Expiration semantics
+
+- RED: a credential evaluated exactly at `validUntil` was reported as active and
+  valid, and an already expired signed credential fell into the generic invalid
+  proof response.
+- GREEN: `validUntil` is exclusive. A typed temporal result is raised only after
+  the proof, schema, issuer, and stored claims are validated, allowing public
+  verification to report `expired` with `signature: true`, `issuer: true`, and
+  `expiry: false`. Focused credential/service verification passes **17/17**.
+
+### Browser-test fixture isolation
+
+- RED: the mandatory-CI contract showed that a public build variable could enable
+  client fixture data independently of the authenticated server adapter.
+- GREEN: the public fixture flag and declaration were removed. Dashboard layout
+  now enables fixture hooks only for the server-authenticated per-run E2E actor;
+  normal production builds default to live APIs. Mandatory auth/fixture coverage
+  and dashboard regressions pass, and the production-build Playwright slice remains
+  **9/9**.
+- Residual boundary: the private server E2E adapter can still be deliberately
+  enabled by a self-hosted operator who supplies both its private flag and a
+  per-run secret. It remains hard-disabled on Vercel, the approved deployment
+  target, and no public/static secret exists.
+
+### Follow-up deterministic evidence
+
+- Frozen install remained unchanged.
+- Format, ESLint, TypeScript, Drizzle validation, and provider-free Next production
+  build passed.
+- Full unit suite: **119 passed / 27 PostgreSQL tests skipped without a URL**.
+- Local PostgreSQL 18: **27/27 passed**.
+- Authenticated production-build Playwright: **9/9 passed**.
+- No Neon, GitHub, Vercel, DNS, or production write occurred during this wave.

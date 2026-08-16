@@ -160,7 +160,16 @@ USING (
   ))
 );--> statement-breakpoint
 
-CREATE FUNCTION hermes_audit_hash_v3(
+CREATE OR REPLACE FUNCTION public.hermes_current_user_id() RETURNS text
+LANGUAGE sql STABLE SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+  SELECT nullif(pg_catalog.current_setting('hermes.user_id', true), '')
+$$;--> statement-breakpoint
+
+-- Keep the version-2 byte representation unchanged for historical rows while
+-- pinning every resolved object to an authoritative schema.
+CREATE OR REPLACE FUNCTION public.hermes_audit_hash(
   p_organization_id uuid,
   p_chain_position bigint,
   p_agent_id uuid,
@@ -176,11 +185,62 @@ CREATE FUNCTION hermes_audit_hash_v3(
   p_prev_hash bytea
 ) RETURNS bytea
 LANGUAGE sql IMMUTABLE
-SET search_path = public
+SET search_path = pg_catalog, public, pg_temp
 AS $$
-  SELECT digest(
-    convert_to(
-      jsonb_build_array(
+  SELECT public.digest(
+    pg_catalog.convert_to(
+      pg_catalog.jsonb_build_array(
+        2,
+        p_chain_position,
+        p_organization_id::text,
+        coalesce(p_agent_id::text, ''),
+        p_actor_type,
+        p_actor_id,
+        p_action,
+        p_summary,
+        coalesce(p_decision, ''),
+        coalesce(p_tool, ''),
+        coalesce(p_amount_cents::text, ''),
+        p_payload,
+        p_occurred_at,
+        coalesce(pg_catalog.encode(p_prev_hash, 'hex'), '')
+      )::text,
+      'UTF8'
+    ),
+    'sha256'
+  )
+$$;--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION public.hermes_audit_immutable() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+BEGIN
+  RAISE EXCEPTION 'agent_audit_logs is append-only';
+END
+$$;--> statement-breakpoint
+
+CREATE FUNCTION public.hermes_audit_hash_v3(
+  p_organization_id uuid,
+  p_chain_position bigint,
+  p_agent_id uuid,
+  p_actor_type text,
+  p_actor_id text,
+  p_action text,
+  p_summary text,
+  p_decision text,
+  p_tool text,
+  p_amount_cents bigint,
+  p_payload jsonb,
+  p_occurred_at timestamptz,
+  p_prev_hash bytea
+) RETURNS bytea
+LANGUAGE sql IMMUTABLE
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+  SELECT public.digest(
+    pg_catalog.convert_to(
+      pg_catalog.jsonb_build_array(
         3,
         p_chain_position,
         p_organization_id::text,
@@ -193,8 +253,11 @@ AS $$
         coalesce(p_tool, ''),
         coalesce(p_amount_cents::text, ''),
         p_payload,
-        to_char(p_occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
-        coalesce(encode(p_prev_hash, 'hex'), '')
+        pg_catalog.to_char(
+          p_occurred_at AT TIME ZONE 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+        ),
+        coalesce(pg_catalog.encode(p_prev_hash, 'hex'), '')
       )::text,
       'UTF8'
     ),
@@ -202,25 +265,28 @@ AS $$
   )
 $$;--> statement-breakpoint
 
-CREATE OR REPLACE FUNCTION hermes_audit_before_insert() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.hermes_audit_before_insert() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, public, pg_temp
 AS $$
 BEGIN
-  PERFORM pg_advisory_xact_lock(hashtextextended(NEW.organization_id::text, 0));
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(NEW.organization_id::text, 0)
+  );
 
-  SELECT coalesce(max(chain_position), 0) + 1 INTO NEW.chain_position
-  FROM agent_audit_logs
+  SELECT coalesce(pg_catalog.max(chain_position), 0) + 1
+  INTO NEW.chain_position
+  FROM public.agent_audit_logs
   WHERE organization_id = NEW.organization_id;
 
   SELECT hash INTO NEW.prev_hash
-  FROM agent_audit_logs
+  FROM public.agent_audit_logs
   WHERE organization_id = NEW.organization_id
   ORDER BY chain_position DESC
   LIMIT 1;
 
   NEW.hash_version := 3;
-  NEW.hash := hermes_audit_hash_v3(
+  NEW.hash := public.hermes_audit_hash_v3(
     NEW.organization_id, NEW.chain_position, NEW.agent_id, NEW.actor_type, NEW.actor_id,
     NEW.action, NEW.summary, NEW.decision, NEW.tool, NEW.amount_cents,
     NEW.payload, NEW.occurred_at, NEW.prev_hash
@@ -229,10 +295,10 @@ BEGIN
 END
 $$;--> statement-breakpoint
 
-CREATE OR REPLACE FUNCTION hermes_verify_audit_chain(p_organization_id uuid)
+CREATE OR REPLACE FUNCTION public.hermes_verify_audit_chain(p_organization_id uuid)
 RETURNS TABLE(valid boolean, checked bigint, first_invalid bigint)
 LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   item record;
@@ -241,17 +307,17 @@ DECLARE
   count_checked bigint := 0;
   expected_chain_position bigint := 1;
 BEGIN
-  IF hermes_current_user_id() IS NULL OR NOT EXISTS (
-    SELECT 1 FROM org_members m
+  IF public.hermes_current_user_id() IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.org_members m
     WHERE m.organization_id = p_organization_id
-      AND m.user_id = hermes_current_user_id()
+      AND m.user_id = public.hermes_current_user_id()
   ) THEN
     RETURN QUERY SELECT false, 0::bigint, NULL::bigint;
     RETURN;
   END IF;
 
   FOR item IN
-    SELECT * FROM agent_audit_logs
+    SELECT * FROM public.agent_audit_logs
     WHERE organization_id = p_organization_id
     ORDER BY chain_position ASC
   LOOP
@@ -265,12 +331,12 @@ BEGIN
       RETURN;
     END IF;
     expected := CASE item.hash_version
-      WHEN 2 THEN hermes_audit_hash(
+      WHEN 2 THEN public.hermes_audit_hash(
         item.organization_id, item.chain_position, item.agent_id, item.actor_type, item.actor_id,
         item.action, item.summary, item.decision, item.tool, item.amount_cents,
         item.payload, item.occurred_at, previous
       )
-      WHEN 3 THEN hermes_audit_hash_v3(
+      WHEN 3 THEN public.hermes_audit_hash_v3(
         item.organization_id, item.chain_position, item.agent_id, item.actor_type, item.actor_id,
         item.action, item.summary, item.decision, item.tool, item.amount_cents,
         item.payload, item.occurred_at, previous
@@ -289,28 +355,28 @@ BEGIN
 END
 $$;--> statement-breakpoint
 
-CREATE FUNCTION hermes_revoke_agent(
+CREATE FUNCTION public.hermes_revoke_agent(
   p_agent_id uuid,
   p_organization_id uuid,
   p_actor_id text
 ) RETURNS TABLE(changed boolean)
 LANGUAGE plpgsql SECURITY INVOKER
-SET search_path = public
+SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   revoked_agent record;
   revoked_timestamp timestamptz := clock_timestamp();
 BEGIN
-  IF p_actor_id IS DISTINCT FROM hermes_current_user_id() OR NOT EXISTS (
-    SELECT 1 FROM org_members m
+  IF p_actor_id IS DISTINCT FROM public.hermes_current_user_id() OR NOT EXISTS (
+    SELECT 1 FROM public.org_members m
     WHERE m.organization_id = p_organization_id
-      AND m.user_id = hermes_current_user_id()
+      AND m.user_id = public.hermes_current_user_id()
       AND m.role IN ('owner', 'admin')
   ) THEN
     RAISE EXCEPTION 'permission denied for agent revocation' USING ERRCODE = '42501';
   END IF;
 
-  UPDATE agents
+  UPDATE public.agents
   SET status = 'revoked', revoked_at = revoked_timestamp, revoked_by = p_actor_id,
     updated_at = revoked_timestamp
   WHERE id = p_agent_id
@@ -320,7 +386,7 @@ BEGIN
 
   IF NOT FOUND THEN
     IF NOT EXISTS (
-      SELECT 1 FROM agents
+      SELECT 1 FROM public.agents
       WHERE id = p_agent_id AND organization_id = p_organization_id
     ) THEN
       RAISE EXCEPTION 'AGENT_NOT_FOUND' USING ERRCODE = 'P0002';
@@ -329,43 +395,73 @@ BEGIN
     RETURN;
   END IF;
 
-  UPDATE agent_keys
+  UPDATE public.agent_keys
   SET status = 'revoked', revoked_at = revoked_timestamp
   WHERE agent_id = p_agent_id
     AND organization_id = p_organization_id
     AND status = 'active';
 
-  INSERT INTO agent_audit_logs (
+  INSERT INTO public.agent_audit_logs (
     organization_id, agent_id, actor_type, actor_id, action, summary,
     decision, tool, payload
   ) VALUES (
     p_organization_id, p_agent_id, 'user', p_actor_id, 'passport.revoked',
     'Passport revoked for ' || revoked_agent.name, 'deny', 'passport.revoke',
-    jsonb_build_object('did', revoked_agent.did, 'credentialId', revoked_agent.credential_id)
+    pg_catalog.jsonb_build_object(
+      'did', revoked_agent.did,
+      'credentialId', revoked_agent.credential_id
+    )
   );
 
   RETURN QUERY SELECT true;
 END
 $$;--> statement-breakpoint
 
-CREATE OR REPLACE FUNCTION hermes_public_agent(p_slug text)
+CREATE OR REPLACE FUNCTION public.hermes_public_issuer_key(p_did text)
+RETURNS TABLE (did text, key_fragment text, public_jwk jsonb, thumbprint text)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+  SELECT i.did, i.key_fragment, i.public_jwk, i.thumbprint
+  FROM public.issuer_keys i
+  WHERE i.did = p_did AND i.status = 'active'
+  ORDER BY i.created_at DESC
+  LIMIT 1
+$$;--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION public.hermes_public_issuer_key_for_fragment(
+  p_did text,
+  p_key_fragment text
+)
+RETURNS TABLE (did text, key_fragment text, public_jwk jsonb, thumbprint text)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+  SELECT i.did, i.key_fragment, i.public_jwk, i.thumbprint
+  FROM public.issuer_keys i
+  WHERE i.did = p_did AND i.key_fragment = p_key_fragment
+  ORDER BY i.created_at DESC
+  LIMIT 1
+$$;--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION public.hermes_public_agent(p_slug text)
 RETURNS TABLE (
   id uuid, slug text, did text, name text, role text, organization_name text,
-  organization_slug text, risk risk_tier, scopes text[], spend_cap_cents bigint,
-  status agent_status, credential_id text, credential_jws text,
+  organization_slug text, risk public.risk_tier, scopes text[], spend_cap_cents bigint,
+  status public.agent_status, credential_id text, credential_jws text,
   issued_at timestamptz, expires_at timestamptz, public_jwk jsonb, thumbprint text
 )
 LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, public, pg_temp
 AS $$
   SELECT a.id, a.slug, a.did, a.name, a.role, o.name, o.slug, a.risk,
     a.scopes, a.spend_cap_cents, a.status, a.credential_id, a.credential_jws,
     a.issued_at, a.expires_at, k.public_jwk, k.thumbprint
-  FROM agents a
-  JOIN organizations o ON o.id = a.organization_id
+  FROM public.agents a
+  JOIN public.organizations o ON o.id = a.organization_id
   LEFT JOIN LATERAL (
     SELECT k.public_jwk, k.thumbprint
-    FROM agent_keys k
+    FROM public.agent_keys k
     WHERE k.agent_id = a.id
       AND k.organization_id = a.organization_id
       AND (a.status = 'revoked' OR k.status = 'active')
@@ -375,24 +471,24 @@ AS $$
   WHERE a.slug = p_slug
 $$;--> statement-breakpoint
 
-CREATE OR REPLACE FUNCTION hermes_public_agent_by_did(p_did text)
+CREATE OR REPLACE FUNCTION public.hermes_public_agent_by_did(p_did text)
 RETURNS TABLE (
   id uuid, slug text, did text, name text, role text, organization_name text,
-  organization_slug text, risk risk_tier, scopes text[], spend_cap_cents bigint,
-  status agent_status, credential_id text, credential_jws text,
+  organization_slug text, risk public.risk_tier, scopes text[], spend_cap_cents bigint,
+  status public.agent_status, credential_id text, credential_jws text,
   issued_at timestamptz, expires_at timestamptz, public_jwk jsonb, thumbprint text
 )
 LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, public, pg_temp
 AS $$
   SELECT a.id, a.slug, a.did, a.name, a.role, o.name, o.slug, a.risk,
     a.scopes, a.spend_cap_cents, a.status, a.credential_id, a.credential_jws,
     a.issued_at, a.expires_at, k.public_jwk, k.thumbprint
-  FROM agents a
-  JOIN organizations o ON o.id = a.organization_id
+  FROM public.agents a
+  JOIN public.organizations o ON o.id = a.organization_id
   LEFT JOIN LATERAL (
     SELECT k.public_jwk, k.thumbprint
-    FROM agent_keys k
+    FROM public.agent_keys k
     WHERE k.agent_id = a.id
       AND k.organization_id = a.organization_id
       AND (a.status = 'revoked' OR k.status = 'active')
@@ -402,19 +498,19 @@ AS $$
   WHERE a.did = p_did
 $$;--> statement-breakpoint
 
-CREATE FUNCTION hermes_public_issuer_keys(p_did text)
+CREATE FUNCTION public.hermes_public_issuer_keys(p_did text)
 RETURNS TABLE (did text, key_fragment text, public_jwk jsonb, thumbprint text, active boolean)
 LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, public, pg_temp
 AS $$
   SELECT i.did, i.key_fragment, i.public_jwk, i.thumbprint, i.status = 'active'
-  FROM issuer_keys i
+  FROM public.issuer_keys i
   WHERE i.did = p_did
   ORDER BY (i.status = 'active') DESC, i.created_at DESC
 $$;--> statement-breakpoint
 
-REVOKE ALL ON FUNCTION hermes_audit_hash_v3(uuid, bigint, uuid, text, text, text, text, text, text, bigint, jsonb, timestamptz, bytea) FROM PUBLIC;--> statement-breakpoint
-REVOKE ALL ON FUNCTION hermes_revoke_agent(uuid, uuid, text) FROM PUBLIC;--> statement-breakpoint
-REVOKE ALL ON FUNCTION hermes_public_issuer_keys(text) FROM PUBLIC;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION hermes_revoke_agent(uuid, uuid, text) TO hermes_app;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION hermes_public_issuer_keys(text) TO hermes_app;
+REVOKE ALL ON FUNCTION public.hermes_audit_hash_v3(uuid, bigint, uuid, text, text, text, text, text, text, bigint, jsonb, timestamptz, bytea) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hermes_revoke_agent(uuid, uuid, text) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hermes_public_issuer_keys(text) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hermes_revoke_agent(uuid, uuid, text) TO hermes_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hermes_public_issuer_keys(text) TO hermes_app;

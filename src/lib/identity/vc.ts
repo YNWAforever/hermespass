@@ -69,6 +69,16 @@ export type PassportCredentialExpectation = {
   now?: Date;
 };
 
+export class CredentialTemporalError extends Error {
+  constructor(
+    public readonly reason: "not_yet_valid" | "expired",
+    public readonly credential: PassportCredential,
+  ) {
+    super(reason === "expired" ? "Credential has expired" : "Credential is not yet valid");
+    this.name = "CredentialTemporalError";
+  }
+}
+
 export function oneCalendarYearLater(date: Date): Date {
   const result = new Date(date);
   const month = result.getUTCMonth();
@@ -129,12 +139,6 @@ export async function verifyPassportCredential(
     throw new Error("Credential proof issuer does not match credential issuer");
   }
 
-  const validFrom = new Date(credential.validFrom).getTime();
-  const validUntil = new Date(credential.validUntil).getTime();
-  const now = (expected?.now ?? new Date()).getTime();
-  if (validFrom > now) throw new Error("Credential is not yet valid");
-  if (validUntil < now || validUntil <= validFrom) throw new Error("Credential has expired");
-
   if (expected) {
     const subject = credential.credentialSubject;
     const exactClaims =
@@ -153,6 +157,13 @@ export async function verifyPassportCredential(
       subject.capabilities.every((scope, index) => scope === expected.scopes[index]);
     if (!exactClaims) throw new Error("Credential claims do not match the stored agent");
   }
+
+  const validFrom = new Date(credential.validFrom).getTime();
+  const validUntil = new Date(credential.validUntil).getTime();
+  const now = (expected?.now ?? new Date()).getTime();
+  if (validUntil <= validFrom) throw new Error("Credential validity interval is invalid");
+  if (validFrom > now) throw new CredentialTemporalError("not_yet_valid", credential);
+  if (validUntil <= now) throw new CredentialTemporalError("expired", credential);
 
   return {
     header,
