@@ -1,12 +1,11 @@
+"use client";
+
 import { Check } from "lucide-react";
 import { useState } from "react";
-import { localize, useLocale } from "@/lib/i18n/locale";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { localize } from "@/lib/i18n/locale";
 import { ZH_CONTACT } from "@/lib/i18n/zh-content";
-import {
-  ZhHeading,
-  ZhSection as Wrap,
-  ZhShell,
-} from "@/components/marketing/zh-shell";
+import { ZhHeading, ZhSection as Wrap, ZhShell } from "@/components/marketing/zh-shell";
 import { cn } from "@/lib/utils";
 
 type Field = "name" | "email" | "company" | "role" | "agents" | "message";
@@ -46,11 +45,7 @@ export function ZhContactPage() {
   return (
     <ZhShell>
       <Wrap className="grid-backdrop border-b border-border">
-        <ZhHeading
-          eyebrow={t.hero.eyebrow}
-          title={t.hero.title}
-          description={t.hero.description}
-        />
+        <ZhHeading eyebrow={t.hero.eyebrow} title={t.hero.title} description={t.hero.description} />
       </Wrap>
 
       <Wrap>
@@ -98,9 +93,7 @@ export function ZhContactPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">
-                    {t.fields.message}
-                  </label>
+                  <label className="text-sm font-medium">{t.fields.message}</label>
                   <textarea
                     rows={4}
                     value={values.message}
@@ -123,10 +116,7 @@ export function ZhContactPage() {
               <h2 className="text-base font-semibold">{t.aside.title}</h2>
               <ul className="mt-4 space-y-2">
                 {t.aside.items.map((item) => (
-                  <li
-                    key={item}
-                    className="flex gap-2 text-sm text-muted-foreground"
-                  >
+                  <li key={item} className="flex gap-2 text-sm text-muted-foreground">
                     <Check className="mt-0.5 size-4 shrink-0 text-emerald-accent" />
                     {item}
                   </li>
@@ -168,9 +158,7 @@ function TextField({
           error && "border-destructive",
         )}
       />
-      {error ? (
-        <p className="mt-1.5 text-xs text-destructive">{error}</p>
-      ) : null}
+      {error ? <p className="mt-1.5 text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

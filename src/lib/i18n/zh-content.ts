@@ -75,8 +75,7 @@ export type ZhPageContent = {
 };
 
 export const ZH_UI = {
-  brandTagline:
-    "AI 智能体的数字护照与合规基础设施：可验证身份、实时授权、可证明审计。",
+  brandTagline: "AI 智能体的数字护照与合规基础设施：可验证身份、实时授权、可证明审计。",
   nav: [
     { slug: "product", label: "产品" },
     { slug: "use-cases", label: "应用场景" },
@@ -103,8 +102,7 @@ export const ZH_UI = {
   footerNote: "HermesPass。在线演示中展示的产品界面使用模拟数据。",
   defaultCta: {
     title: "看看 KYA 如何管住你的智能体",
-    description:
-      "30 分钟技术简报：护照签发、网关策略、支出管控，以及监管机构会索取的审计导出。",
+    description: "30 分钟技术简报：护照签发、网关策略、支出管控，以及监管机构会索取的审计导出。",
   },
   ctaPrimary: "预约技术简报",
   ctaSecondary: "浏览在线演示",
@@ -140,8 +138,7 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
         kind: "cards",
         eyebrow: "四大支柱",
         title: "从身份到证据的完整闭环",
-        description:
-          "HermesPass 不是又一个日志系统，而是智能体行动前后的控制平面。",
+        description: "HermesPass 不是又一个日志系统，而是智能体行动前后的控制平面。",
         items: [
           {
             title: "智能体护照",
@@ -191,8 +188,7 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
   product: {
     meta: {
       title: "产品 — HermesPass KYA 控制平面",
-      description:
-        "了解 HermesPass 的智能体护照、策略网关、受限钱包与防篡改审计链如何协同运作。",
+      description: "了解 HermesPass 的智能体护照、策略网关、受限钱包与防篡改审计链如何协同运作。",
     },
     hero: {
       eyebrow: "产品",
@@ -262,8 +258,7 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
     hero: {
       eyebrow: "应用场景",
       title: "六类高价值、高风险的智能体工作流",
-      description:
-        "每个场景都有相同的问题：智能体已经能做，但企业无法证明它被允许做。",
+      description: "每个场景都有相同的问题：智能体已经能做，但企业无法证明它被允许做。",
     },
     sections: [
       {
@@ -318,8 +313,7 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
     hero: {
       eyebrow: "核心价值",
       title: "把「我们相信它没问题」变成「我们可以证明」",
-      description:
-        "治理不是让智能体变慢，而是让它可以被放心地放开。",
+      description: "治理不是让智能体变慢，而是让它可以被放心地放开。",
     },
     sections: [
       {
@@ -365,8 +359,7 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
   industries: {
     meta: {
       title: "行业方案 — 金融、保险、零售、广告与物流",
-      description:
-        "HermesPass 在受监管行业的落地方式，涵盖香港与新加坡的监管重点。",
+      description: "HermesPass 在受监管行业的落地方式，涵盖香港与新加坡的监管重点。",
     },
     hero: {
       eyebrow: "行业方案",
@@ -461,8 +454,7 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
     hero: {
       eyebrow: "合规标准",
       title: "以公开标准为基础，而不是自定义黑箱",
-      description:
-        "身份与凭证遵循 W3C 标准；治理控制点对齐亚洲主要监管机构的关注重点。",
+      description: "身份与凭证遵循 W3C 标准；治理控制点对齐亚洲主要监管机构的关注重点。",
     },
     sections: [
       {
@@ -509,14 +501,12 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
   security: {
     meta: {
       title: "信任中心 — 安全架构与哈希链审计",
-      description:
-        "HermesPass 的安全态势、合规文件清单，以及哈希链审计日志的公开说明。",
+      description: "HermesPass 的安全态势、合规文件清单，以及哈希链审计日志的公开说明。",
     },
     hero: {
       eyebrow: "信任中心",
       title: "我们如何保护你的智能体治理数据",
-      description:
-        "身份签发、运行时管控、最小权限与可验证审计构成我们的安全基线。",
+      description: "身份签发、运行时管控、最小权限与可验证审计构成我们的安全基线。",
     },
     sections: [
       {
@@ -574,8 +564,7 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
   faq: {
     meta: {
       title: "常见问题 — 智能体护照、人工审批与导出报表",
-      description:
-        "关于 HermesPass 护照签发、人工在环审批、审计导出与部署方式的常见问题。",
+      description: "关于 HermesPass 护照签发、人工在环审批、审计导出与部署方式的常见问题。",
     },
     hero: {
       eyebrow: "常见问题",
@@ -769,22 +758,45 @@ export const ZH_PAGES: Record<string, ZhPageContent> = {
 export const ZH_ROI = {
   meta: {
     title: "ROI 试算 — HermesPass 治理收益评估",
-    description:
-      "估算 HermesPass 为企业节省的合规审查工时与可管控的智能体支出。",
+    description: "估算 HermesPass 为企业节省的合规审查工时与可管控的智能体支出。",
   },
   hero: {
     eyebrow: "ROI 试算",
     title: "估算失控智能体的成本",
-    description:
-      "调整下列参数，看看 HermesPass 每年可以回收多少合规审查时间与超范围支出。",
+    description: "调整下列参数，看看 HermesPass 每年可以回收多少合规审查时间与超范围支出。",
   },
   inputs: {
-    agents: { label: "智能体数量", suffix: " 个", description: "需要治理的智能体、副驾驶或自动化工作流。" },
-    reviews: { label: "每个智能体每月合规审查次数", suffix: " 次", description: "新上线、范围变更、权限复核或事件跟进。" },
-    hoursPerReview: { label: "单次审查平均耗时", suffix: " 小时", description: "风险、法务或安全团队投入的时间。" },
-    hourlyRate: { label: "合规人员成本", prefix: "$", suffix: " / 小时", description: "审查人员的综合小时成本。" },
-    monthlySpend: { label: "智能体每月发起的支出", prefix: "$", description: "采购、API、服务、投放等由智能体发起的总支出。" },
-    outOfPolicy: { label: "超范围 / 未受管支出比例", suffix: "%", description: "错记、未审批、超预算或超出授权范围的比例。" },
+    agents: {
+      label: "智能体数量",
+      suffix: " 个",
+      description: "需要治理的智能体、副驾驶或自动化工作流。",
+    },
+    reviews: {
+      label: "每个智能体每月合规审查次数",
+      suffix: " 次",
+      description: "新上线、范围变更、权限复核或事件跟进。",
+    },
+    hoursPerReview: {
+      label: "单次审查平均耗时",
+      suffix: " 小时",
+      description: "风险、法务或安全团队投入的时间。",
+    },
+    hourlyRate: {
+      label: "合规人员成本",
+      prefix: "$",
+      suffix: " / 小时",
+      description: "审查人员的综合小时成本。",
+    },
+    monthlySpend: {
+      label: "智能体每月发起的支出",
+      prefix: "$",
+      description: "采购、API、服务、投放等由智能体发起的总支出。",
+    },
+    outOfPolicy: {
+      label: "超范围 / 未受管支出比例",
+      suffix: "%",
+      description: "错记、未审批、超预算或超出授权范围的比例。",
+    },
   },
   results: {
     heading: "预计年度收益",

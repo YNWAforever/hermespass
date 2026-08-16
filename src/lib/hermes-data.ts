@@ -111,9 +111,7 @@ export function publicKeyFor(seed: string): string {
   return `z6Mk${mockHash(seed + "-ed25519", 40)}`;
 }
 
-function agent(
-  a: Omit<Agent, "id" | "thumbprint" | "publicKey">,
-): Agent {
+function agent(a: Omit<Agent, "id" | "thumbprint" | "publicKey">): Agent {
   return {
     ...a,
     id: DID_PREFIX + a.slug,
@@ -322,10 +320,7 @@ export function buildChain(events: GatewayEvent[]): ChainBlock[] {
 
 export function credentialFor(a: Agent) {
   return {
-    "@context": [
-      "https://www.w3.org/ns/credentials/v2",
-      "https://hermespass.asia/contexts/kya/v1",
-    ],
+    "@context": ["https://www.w3.org/ns/credentials/v2", "https://hermespass.asia/contexts/kya/v1"],
     id: `urn:uuid:${mockHash(a.slug + "-vc", 32).replace(
       /^(.{8})(.{4})(.{4})(.{4})(.{12}).*$/,
       "$1-$2-$3-$4-$5",

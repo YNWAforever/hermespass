@@ -1,3 +1,5 @@
+"use client";
+
 import {
   createContext,
   useCallback,
@@ -100,7 +102,7 @@ export function HermesProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<GatewayEvent[]>(SEED_EVENTS);
   const [wallets, setWallets] = useState<Wallet[]>(SEED_WALLETS);
   const [streaming, setStreaming] = useState(true);
-  const [counter, setCounter] = useState(0);
+  const [, setCounter] = useState(0);
 
   useEffect(() => {
     if (!streaming) return;
@@ -144,7 +146,7 @@ export function HermesProvider({ children }: { children: ReactNode }) {
     setWallets((prev) => [
       {
         agentSlug: slug,
-        pan: String(4000 + (slug.length * 137) % 999),
+        pan: String(4000 + ((slug.length * 137) % 999)),
         network: "Visa Commercial",
         perTx: Math.max(1, Math.round(input.spendCap / 10)),
         daily: Math.max(1, input.spendCap),
@@ -169,41 +171,31 @@ export function HermesProvider({ children }: { children: ReactNode }) {
     return created;
   }, []);
 
-  const resolveEvent = useCallback(
-    (id: string, decision: Exclude<Decision, "hold">) => {
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === id
-            ? {
-                ...e,
-                decision,
-                resolvedBy: "you@hermespass.asia",
-                reason:
-                  decision === "allow"
-                    ? "Released by human reviewer — mandate re-signed and executed."
-                    : "Rejected by human reviewer — mandate voided.",
-              }
-            : e,
-        ),
-      );
-    },
-    [],
-  );
-
-  const escalateEvent = useCallback((id: string) => {
+  const resolveEvent = useCallback((id: string, decision: Exclude<Decision, "hold">) => {
     setEvents((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, escalated: true } : e)),
+      prev.map((e) =>
+        e.id === id
+          ? {
+              ...e,
+              decision,
+              resolvedBy: "you@hermespass.asia",
+              reason:
+                decision === "allow"
+                  ? "Released by human reviewer — mandate re-signed and executed."
+                  : "Rejected by human reviewer — mandate voided.",
+            }
+          : e,
+      ),
     );
   }, []);
 
-  const updateWallet = useCallback(
-    (agentSlug: string, patch: Partial<Wallet>) => {
-      setWallets((prev) =>
-        prev.map((w) => (w.agentSlug === agentSlug ? { ...w, ...patch } : w)),
-      );
-    },
-    [],
-  );
+  const escalateEvent = useCallback((id: string) => {
+    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, escalated: true } : e)));
+  }, []);
+
+  const updateWallet = useCallback((agentSlug: string, patch: Partial<Wallet>) => {
+    setWallets((prev) => prev.map((w) => (w.agentSlug === agentSlug ? { ...w, ...patch } : w)));
+  }, []);
 
   const value = useMemo<HermesContextValue>(
     () => ({
@@ -219,21 +211,10 @@ export function HermesProvider({ children }: { children: ReactNode }) {
       updateWallet,
       agentBySlug: (slug) => agents.find((a) => a.slug === slug),
     }),
-    [
-      agents,
-      events,
-      wallets,
-      streaming,
-      issuePassport,
-      resolveEvent,
-      escalateEvent,
-      updateWallet,
-    ],
+    [agents, events, wallets, streaming, issuePassport, resolveEvent, escalateEvent, updateWallet],
   );
 
-  return (
-    <HermesContext.Provider value={value}>{children}</HermesContext.Provider>
-  );
+  return <HermesContext.Provider value={value}>{children}</HermesContext.Provider>;
 }
 
 export function useHermes() {

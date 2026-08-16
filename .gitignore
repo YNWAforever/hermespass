@@ -8,12 +8,15 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.next/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.worktrees/
+*.tsbuildinfo
 dist
 dist-ssr
-.output
-.vinxi
-.tanstack/**
-.nitro
 *.local
 
 # Wrangler / Cloudflare

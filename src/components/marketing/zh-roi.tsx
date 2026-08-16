@@ -1,13 +1,11 @@
+"use client";
+
 import { Calculator, Clock, DollarSign, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
-import { localize, useLocale } from "@/lib/i18n/locale";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { localize } from "@/lib/i18n/locale";
 import { ZH_ROI } from "@/lib/i18n/zh-content";
-import {
-  ZhCtaBand,
-  ZhHeading,
-  ZhSection as Wrap,
-  ZhShell,
-} from "@/components/marketing/zh-shell";
+import { ZhCtaBand, ZhHeading, ZhSection as Wrap, ZhShell } from "@/components/marketing/zh-shell";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
@@ -37,8 +35,7 @@ export function ZhRoiPage() {
     const monthlyReviewHours = agents * reviewsPerAgent * hoursPerReview;
     const monthlyComplianceCost = monthlyReviewHours * hourlyRate;
     const labourSaved = monthlyComplianceCost * LABOUR_TIME_REDUCTION;
-    const spendGovernanceValue =
-      monthlySpend * (outOfPolicyRate / 100) * SPEND_CAPTURE_RATE;
+    const spendGovernanceValue = monthlySpend * (outOfPolicyRate / 100) * SPEND_CAPTURE_RATE;
     const annualHours = monthlyReviewHours * LABOUR_TIME_REDUCTION * 12;
     return {
       annualHours,
@@ -51,11 +48,7 @@ export function ZhRoiPage() {
   return (
     <ZhShell>
       <Wrap className="grid-backdrop border-b border-border">
-        <ZhHeading
-          eyebrow={t.hero.eyebrow}
-          title={t.hero.title}
-          description={t.hero.description}
-        />
+        <ZhHeading eyebrow={t.hero.eyebrow} title={t.hero.title} description={t.hero.description} />
       </Wrap>
 
       <Wrap>
@@ -155,9 +148,7 @@ export function ZhRoiPage() {
               </div>
 
               <div className="mt-6 rounded-md border border-border bg-surface p-4">
-                <p className="text-sm font-medium">
-                  {t.results.assumptionsTitle}
-                </p>
+                <p className="text-sm font-medium">{t.results.assumptionsTitle}</p>
                 <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
                   {t.results.assumptions.map((a) => (
                     <li key={a}>• {a}</li>
@@ -201,9 +192,7 @@ function InputRow({
           <div>
             <label className="text-sm font-medium">{field.label}</label>
             {field.description ? (
-              <p className="mt-1 max-w-md text-xs text-muted-foreground">
-                {field.description}
-              </p>
+              <p className="mt-1 max-w-md text-xs text-muted-foreground">{field.description}</p>
             ) : null}
           </div>
         </div>
@@ -242,15 +231,7 @@ function InputRow({
   );
 }
 
-function ResultCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
+function ResultCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-5">
       <p className="font-mono text-[11px] tracking-wider text-muted-foreground uppercase">
