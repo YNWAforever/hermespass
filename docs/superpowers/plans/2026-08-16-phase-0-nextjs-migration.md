@@ -173,11 +173,11 @@ export function zhMetadata(locale: string, slug: string): Metadata;
 - `ComplianceClient`
 - `WalletsClient`
 
-- [ ] Add failing tests for all five exact metadata objects and the core mock-store interactions.
-- [ ] Port each existing dashboard body unchanged into its named client component.
-- [ ] Make each route wrapper a server component that exports its original metadata and renders the corresponding client component.
-- [ ] Keep `AppShell` in the dashboard layout and preserve pathname-based active navigation.
-- [ ] Verify:
+- [x] Add failing tests for all five exact metadata objects and the core mock-store interactions.
+- [x] Port each existing dashboard body unchanged into its named client component.
+- [x] Make each route wrapper a server component that exports its original metadata and renders the corresponding client component.
+- [x] Keep `AppShell` in the dashboard layout and preserve pathname-based active navigation.
+- [x] Verify:
 
   - Issue a passport and see the new agent and wallet.
   - Pause/resume the gateway stream.
@@ -185,7 +185,7 @@ export function zhMetadata(locale: string, slug: string): Metadata;
   - Change wallet limits and freeze a card.
   - Trigger compliance CSV download and print action.
 
-- [ ] Commit the dashboard slice.
+- [x] Commit the dashboard slice.
 
 ### Task 6: Remove the legacy runtime and finish repository configuration
 
