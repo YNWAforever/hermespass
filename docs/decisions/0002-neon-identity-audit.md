@@ -52,3 +52,16 @@ material; key access therefore remains a server-only operational boundary.
 
 Project creation, Vercel integration, key provisioning, user seeding, domain
 attachment, and production deployment remain explicit approval gates.
+
+## Amendment — 2026-08-17
+
+The approved Neon provider identity is the existing project `curly-smoke-16875897`
+(`hermespass`) in AWS Singapore, running PostgreSQL 18. It is owned by Willy's
+organization `org-soft-sunset-25251479`, replacing the previously selected
+Vercel-managed organization. Its accepted branch topology is a root
+`production` branch with the default `development` branch as its child;
+previews still originate from default `development`.
+
+This ownership and topology deviation from the original decision was explicitly
+approved. This amendment authorizes no production migration, Vercel connection,
+credential, domain, or release.

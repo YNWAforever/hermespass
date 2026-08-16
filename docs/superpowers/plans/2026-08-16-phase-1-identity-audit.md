@@ -14,8 +14,14 @@ project creation and production changes require separate approval.
 
 ## Architecture
 
-- Use `@neondatabase/auth` behind a local server-only auth adapter. Add a
-  custom `/login`, the catch-all Auth handler, and `src/proxy.ts`. Reject
+- Use the existing Neon PostgreSQL 18 project `curly-smoke-16875897`
+  (`hermespass`) in AWS Singapore, owned by Willy's organization
+  `org-soft-sunset-25251479`. Its root `production` branch has the default
+  `development` child branch, and previews originate from default
+  `development`. This explicitly approved ownership/topology deviation does
+  not authorize production migration, Vercel connection, credentials, domain,
+  or release. Use `@neondatabase/auth` behind a local server-only auth adapter.
+  Add a custom `/login`, the catch-all Auth handler, and `src/proxy.ts`. Reject
   public signup requests; application access requires one `org_members` row.
 - Use Drizzle schema plus reviewed SQL migrations. Runtime uses a pooled,
   non-owner `hermes_app` role with forced RLS. Owner/direct credentials are
@@ -52,10 +58,11 @@ project creation and production changes require separate approval.
 5. Add PostgreSQL 18 integration tests, Neon ephemeral-branch smoke tests,
    authentication tests, route/interaction tests, and public-only visual
    parity checks.
-6. After approval, create the dedicated Neon project in the Vercel-managed
-   organization, keep `development` as the preview parent, connect production
-   to an isolated production branch, seed only nonproduction test data, and
-   verify the Vercel preview.
+6. After approval, use the existing Neon project `curly-smoke-16875897` under
+   Willy's organization, with root `production` and default `development` as
+   its child; keep previews on `development`. Seed only nonproduction test
+   data and verify the preview. No production migration, Vercel connection,
+   credential, domain, or release is authorized by this plan amendment.
 7. After separate production approval, attach the domain, create the
    production issuer, seed the approved operators/agents, and rerun all
    verification suites.
@@ -71,3 +78,9 @@ project creation and production changes require separate approval.
   encryption-integrity tests pass.
 - Production is not declared complete until the preview and post-domain
   verification gates are approved and green.
+
+## Remediation note
+
+PostgreSQL 18 acceptance coverage now tests contaminated-role normalization,
+forced RLS, cross-tenant/viewer denial, concurrent fork-free audit chaining with
+locked `chain_position`, tamper blocking, and rollback.
