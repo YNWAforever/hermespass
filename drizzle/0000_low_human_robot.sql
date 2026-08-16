@@ -118,14 +118,39 @@ CREATE INDEX "org_members_organization_id_idx" ON "org_members" USING btree ("or
 CREATE UNIQUE INDEX "organizations_slug_key" ON "organizations" USING btree ("slug");--> statement-breakpoint
 
 DO $$
+DECLARE
+  app_role record;
+  migration_owner_can_create_db boolean;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hermes_app') THEN
-    CREATE ROLE hermes_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;
+  SELECT rolsuper, rolreplication, rolbypassrls, rolcreatedb
+  INTO app_role
+  FROM pg_roles
+  WHERE rolname = 'hermes_app';
+
+  IF FOUND AND (app_role.rolsuper OR app_role.rolreplication OR app_role.rolbypassrls) THEN
+    RAISE EXCEPTION 'unsafe pre-existing hermes_app role';
+  END IF;
+
+  IF NOT FOUND THEN
+    CREATE ROLE hermes_app LOGIN NOINHERIT;
+  ELSE
+    IF app_role.rolcreatedb THEN
+      SELECT rolcreatedb
+      INTO migration_owner_can_create_db
+      FROM pg_roles
+      WHERE rolname = current_user;
+
+      IF NOT migration_owner_can_create_db THEN
+        RAISE EXCEPTION 'unsafe pre-existing hermes_app role';
+      END IF;
+
+      EXECUTE 'ALTER ROLE hermes_app NOCREATEDB';
+    END IF;
+
+    EXECUTE 'ALTER ROLE hermes_app LOGIN NOCREATEROLE NOINHERIT';
   END IF;
 END
 $$;--> statement-breakpoint
-
-ALTER ROLE hermes_app LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;--> statement-breakpoint
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;--> statement-breakpoint
 REVOKE CREATE ON SCHEMA public FROM hermes_app;--> statement-breakpoint
 GRANT USAGE ON SCHEMA public TO hermes_app;--> statement-breakpoint

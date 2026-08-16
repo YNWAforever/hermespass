@@ -31,29 +31,52 @@ function suffix(): string {
   return crypto.randomUUID().replaceAll("-", "");
 }
 
-async function applyMigration(pool: Pool): Promise<void> {
-  const migration = await readFile(migrationPath, "utf8");
+type HermesAppState = "absent" | "safe" | "privileged";
+
+async function resetMigrationFixture(pool: Pool, hermesAppState: HermesAppState): Promise<void> {
   const client = await pool.connect();
 
   try {
     await client.query("DROP SCHEMA public CASCADE");
     await client.query("CREATE SCHEMA public");
-    await client.query(`DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hermes_app') THEN
-          CREATE ROLE hermes_app LOGIN BYPASSRLS CREATEDB CREATEROLE;
-        END IF;
-      END
-    $$`);
-    await client.query("ALTER ROLE hermes_app BYPASSRLS CREATEDB CREATEROLE");
+    await client.query("CREATE EXTENSION IF NOT EXISTS pgcrypto");
+    await client.query("DROP ROLE IF EXISTS hermes_app");
+    await client.query("DROP ROLE IF EXISTS migration_owner");
+    await client.query("CREATE ROLE migration_owner LOGIN CREATEROLE");
+    await client.query("ALTER SCHEMA public OWNER TO migration_owner");
     await client.query("GRANT CREATE ON SCHEMA public TO PUBLIC");
-    await client.query("GRANT CREATE ON SCHEMA public TO hermes_app");
 
+    if (hermesAppState !== "absent") {
+      if (hermesAppState === "privileged") {
+        await client.query("CREATE ROLE hermes_app LOGIN BYPASSRLS CREATEDB CREATEROLE");
+      } else {
+        await client.query("CREATE ROLE hermes_app NOLOGIN INHERIT");
+        await client.query("GRANT hermes_app TO migration_owner WITH ADMIN OPTION");
+      }
+      await client.query("GRANT CREATE ON SCHEMA public TO hermes_app");
+    }
+  } finally {
+    client.release();
+  }
+}
+
+async function applyMigration(pool: Pool): Promise<void> {
+  const migration = await readFile(migrationPath, "utf8");
+  const client = await pool.connect();
+
+  try {
+    await client.query("SET ROLE migration_owner");
+    await client.query("BEGIN");
     for (const statement of migration.split("--> statement-breakpoint")) {
       const sql = statement.trim();
       if (sql) await client.query(sql);
     }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
   } finally {
+    await client.query("RESET ROLE").catch(() => undefined);
     client.release();
   }
 }
@@ -116,12 +139,63 @@ async function expectSqlState(operation: () => Promise<unknown>, code: string): 
   await expect(operation()).rejects.toMatchObject({ code });
 }
 
+dbTest("PostgreSQL migration owner controls", () => {
+  let pool: Pool;
+
+  beforeAll(() => {
+    pool = new Pool({ connectionString: databaseUrl, max: 2 });
+  });
+
+  afterAll(async () => {
+    await pool?.end();
+  });
+
+  it("fails closed and rolls back when a pre-existing app role has privileged attributes", async () => {
+    await resetMigrationFixture(pool, "privileged");
+
+    await expect(applyMigration(pool)).rejects.toThrow("unsafe pre-existing hermes_app role");
+
+    const [role, tables] = await Promise.all([
+      pool.query(
+        "SELECT rolsuper, rolreplication, rolbypassrls FROM pg_roles WHERE rolname = 'hermes_app'",
+      ),
+      pool.query("SELECT to_regclass('public.agents') AS agents"),
+    ]);
+    expect(role.rows).toEqual([{ rolsuper: false, rolreplication: false, rolbypassrls: true }]);
+    expect(tables.rows).toEqual([{ agents: null }]);
+  });
+
+  it.each(["absent", "safe"] as const)(
+    "applies under migration_owner when hermes_app is %s",
+    async (hermesAppState) => {
+      await resetMigrationFixture(pool, hermesAppState);
+      await applyMigration(pool);
+
+      const role = await pool.query(
+        "SELECT rolcanlogin, rolsuper, rolreplication, rolbypassrls, rolcreatedb, rolcreaterole, rolinherit FROM pg_roles WHERE rolname = 'hermes_app'",
+      );
+      expect(role.rows).toEqual([
+        {
+          rolcanlogin: true,
+          rolsuper: false,
+          rolreplication: false,
+          rolbypassrls: false,
+          rolcreatedb: false,
+          rolcreaterole: false,
+          rolinherit: false,
+        },
+      ]);
+    },
+  );
+});
+
 dbTest("PostgreSQL identity and audit controls", () => {
   let pool: Pool;
   let fixtures: Fixtures;
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: databaseUrl, max: 12 });
+    await resetMigrationFixture(pool, "safe");
     await applyMigration(pool);
 
     const organizationId = crypto.randomUUID();
