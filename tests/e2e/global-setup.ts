@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -9,6 +10,7 @@ const POLL_INTERVAL_MS = 250;
 interface ServerSpec {
   name: string;
   script: string;
+  snapshotPath?: string;
   url: string;
   env: Record<string, string>;
 }
@@ -75,6 +77,7 @@ export default async function globalSetup() {
     {
       name: "legacy",
       script: path.join(projectDirectory, "tests/e2e/support/serve-legacy.mjs"),
+      snapshotPath: path.join(legacyDirectory, "src/routeTree.gen.ts"),
       url: legacyUrl,
       env: {
         HERMESPASS_LEGACY_DIR: legacyDirectory,
@@ -92,6 +95,18 @@ export default async function globalSetup() {
     },
   ];
   const children: ChildProcess[] = [];
+  const snapshots = new Map<string, Buffer>();
+
+  const cleanup = async () => {
+    const stopResults = await Promise.allSettled(children.reverse().map(stopServer));
+    const restoreResults = await Promise.allSettled(
+      [...snapshots].map(([filePath, contents]) => writeFile(filePath, contents)),
+    );
+    const failure = [...stopResults, ...restoreResults].find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failure) throw failure.reason;
+  };
 
   try {
     await Promise.all(
@@ -104,6 +119,9 @@ export default async function globalSetup() {
           return;
         }
 
+        if (spec.snapshotPath) {
+          snapshots.set(spec.snapshotPath, await readFile(spec.snapshotPath));
+        }
         const child = spawn(process.execPath, [spec.script], {
           cwd: projectDirectory,
           env: { ...process.env, ...spec.env },
@@ -115,15 +133,13 @@ export default async function globalSetup() {
       }),
     );
   } catch (error) {
-    await Promise.allSettled(children.map(stopServer));
+    try {
+      await cleanup();
+    } catch (cleanupError) {
+      console.error("Parity server cleanup failed after setup error", cleanupError);
+    }
     throw error;
   }
 
-  return async () => {
-    const results = await Promise.allSettled(children.reverse().map(stopServer));
-    const failure = results.find(
-      (result): result is PromiseRejectedResult => result.status === "rejected",
-    );
-    if (failure) throw failure.reason;
-  };
+  return cleanup;
 }

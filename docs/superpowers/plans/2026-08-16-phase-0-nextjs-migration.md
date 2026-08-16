@@ -240,7 +240,7 @@ bun run build
 
 ### Task 8: CI, draft PR, preview verification, and approval gates
 
-- [ ] Add two CI jobs:
+- [x] Add two CI jobs:
 
   - `check`: Bun 1.3.14 frozen install, formatting, Next ESLint, TypeScript, Vitest, production build.
   - `parity`: check out the PR branch and `legacy/vite` separately, install both, install Chromium, run both servers, execute route/interaction/visual tests, and upload Playwright artifacts on failure.
