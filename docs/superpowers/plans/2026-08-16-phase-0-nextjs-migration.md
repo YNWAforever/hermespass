@@ -111,17 +111,17 @@ git commit -m "docs: record Next.js App Router migration"
 | `src/routes/contact.tsx` | `src/components/marketing/en-contact-client.tsx` + `src/app/(marketing)/contact/page.tsx` |
 | `src/routes/roi-calculator.tsx` | `src/components/marketing/en-roi-client.tsx` + `src/app/(marketing)/roi-calculator/page.tsx` |
 
-- [ ] Add failing metadata/render tests for all 13 English routes using the exact existing title, description, Open Graph title/description, and Twitter card values.
-- [ ] Port the ten static routes as server pages, removing only `createFileRoute`, converting `head.meta` to `Metadata`, swapping TanStack links, and making the existing page function the default export.
-- [ ] Keep contact and ROI state in named client exports `EnContactClient` and `EnRoiClient`; their server `page.tsx` files own metadata.
-- [ ] Verify all English routes return 200 and test:
+- [x] Add failing metadata/render tests for all 13 English routes using the exact existing title, description, Open Graph title/description, and Twitter card values.
+- [x] Port the ten static routes as server pages, removing only `createFileRoute`, converting `head.meta` to `Metadata`, swapping TanStack links, and making the existing page function the default export.
+- [x] Keep contact and ROI state in named client exports `EnContactClient` and `EnRoiClient`; their server `page.tsx` files own metadata.
+- [x] Verify all English routes return 200 and test:
 
   - Pricing active navigation.
   - Contact validation and successful simulated submission.
   - ROI input changes recalculate the annual total.
   - Desktop mega-menu and mobile menu navigation.
 
-- [ ] Commit the English route slice.
+- [x] Commit the English route slice.
 
 ### Task 4: Port Chinese routes with a server-safe locale boundary
 

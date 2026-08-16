@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     title: "HermesPass — Know Your Agent Infrastructure for AI Agents",
     description:
       "Issue verifiable agent passports, gate every tool call in real time, cap agent spend and export regulator-ready audit evidence.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
   },
 };
 const PILLARS = [
