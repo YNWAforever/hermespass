@@ -10,10 +10,6 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     ".worktrees/**",
-    ".output/**",
-    ".vinxi/**",
-    ".tanstack/**",
-    ".nitro/**",
     ".wrangler/**",
     "dist/**",
     "coverage/**",
@@ -21,11 +17,6 @@ export default defineConfig([
     "test-results/**",
     "blob-report/**",
     "next-env.d.ts",
-    "src/routeTree.gen.ts",
-    "src/routes/**",
-    "src/router.tsx",
-    "src/server.ts",
-    "src/start.ts",
   ]),
   {
     files: [

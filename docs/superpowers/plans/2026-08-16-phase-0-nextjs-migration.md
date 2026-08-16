@@ -203,8 +203,8 @@ export function zhMetadata(locale: string, slug: string): Metadata;
 - Replace README stack/development/history with Next 16 instructions.
 - Append a short App Router/client-boundary note to `AGENTS.md` without altering its codebase-memory block.
 
-- [ ] Confirm no source imports `@tanstack/react-router`, `@tanstack/react-start`, deleted error helpers, `routeTree.gen`, or Lovable runtime hooks.
-- [ ] Run the complete deterministic gate:
+- [x] Confirm no source imports `@tanstack/react-router`, `@tanstack/react-start`, deleted error helpers, `routeTree.gen`, or Lovable runtime hooks.
+- [x] Run the complete deterministic gate:
 
 ```powershell
 bun install --frozen-lockfile
@@ -215,7 +215,7 @@ bun run test
 bun run build
 ```
 
-- [ ] Commit the explicit deletions and configuration files.
+- [x] Commit the explicit deletions and configuration files.
 
 ### Task 7: Add automated route, interaction, and visual parity
 
