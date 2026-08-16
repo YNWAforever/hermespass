@@ -5,6 +5,7 @@ CREATE TYPE "public"."member_role" AS ENUM('owner', 'admin', 'viewer');--> state
 CREATE TYPE "public"."risk_tier" AS ENUM('low', 'medium', 'high');--> statement-breakpoint
 CREATE TABLE "agent_audit_logs" (
 	"id" bigserial PRIMARY KEY NOT NULL,
+	"chain_position" bigint DEFAULT 0 NOT NULL,
 	"organization_id" uuid NOT NULL,
 	"agent_id" uuid,
 	"actor_type" text NOT NULL,
@@ -100,6 +101,7 @@ ALTER TABLE "agent_keys" ADD CONSTRAINT "agent_keys_organization_id_organization
 ALTER TABLE "agents" ADD CONSTRAINT "agents_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "org_members" ADD CONSTRAINT "org_members_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "agent_audit_logs_organization_id_id_idx" ON "agent_audit_logs" USING btree ("organization_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "agent_audit_logs_organization_chain_position_key" ON "agent_audit_logs" USING btree ("organization_id","chain_position");--> statement-breakpoint
 CREATE INDEX "agent_audit_logs_agent_id_idx" ON "agent_audit_logs" USING btree ("agent_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "agent_keys_agent_fragment_key" ON "agent_keys" USING btree ("agent_id","key_fragment");--> statement-breakpoint
 CREATE UNIQUE INDEX "agent_keys_active_agent_key" ON "agent_keys" USING btree ("agent_id") WHERE "agent_keys"."status" = 'active';--> statement-breakpoint
@@ -183,6 +185,7 @@ ALTER TABLE agents ADD CONSTRAINT agents_role_not_blank CHECK (length(btrim(role
 
 CREATE FUNCTION hermes_audit_hash(
   p_organization_id uuid,
+  p_chain_position bigint,
   p_agent_id uuid,
   p_actor_type text,
   p_actor_id text,
@@ -201,7 +204,8 @@ AS $$
   SELECT digest(
     convert_to(
       jsonb_build_array(
-        1,
+        2,
+        p_chain_position,
         p_organization_id::text,
         coalesce(p_agent_id::text, ''),
         p_actor_type,
@@ -227,13 +231,19 @@ SET search_path = public
 AS $$
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended(NEW.organization_id::text, 0));
+
+  SELECT coalesce(max(chain_position), 0) + 1 INTO NEW.chain_position
+  FROM agent_audit_logs
+  WHERE organization_id = NEW.organization_id;
+
   SELECT hash INTO NEW.prev_hash
   FROM agent_audit_logs
   WHERE organization_id = NEW.organization_id
-  ORDER BY id DESC
+  ORDER BY chain_position DESC
   LIMIT 1;
+
   NEW.hash := hermes_audit_hash(
-    NEW.organization_id, NEW.agent_id, NEW.actor_type, NEW.actor_id,
+    NEW.organization_id, NEW.chain_position, NEW.agent_id, NEW.actor_type, NEW.actor_id,
     NEW.action, NEW.summary, NEW.decision, NEW.tool, NEW.amount_cents,
     NEW.payload, NEW.occurred_at, NEW.prev_hash
   );
@@ -260,6 +270,7 @@ DECLARE
   previous bytea;
   expected bytea;
   count_checked bigint := 0;
+  expected_chain_position bigint := 1;
 BEGIN
   IF hermes_current_user_id() IS NULL OR NOT EXISTS (
     SELECT 1 FROM org_members m
@@ -273,15 +284,19 @@ BEGIN
   FOR item IN
     SELECT * FROM agent_audit_logs
     WHERE organization_id = p_organization_id
-    ORDER BY id ASC
+    ORDER BY chain_position ASC
   LOOP
     count_checked := count_checked + 1;
+    IF item.chain_position <> expected_chain_position THEN
+      RETURN QUERY SELECT false, count_checked, item.id;
+      RETURN;
+    END IF;
     IF item.prev_hash IS DISTINCT FROM previous THEN
       RETURN QUERY SELECT false, count_checked, item.id;
       RETURN;
     END IF;
     expected := hermes_audit_hash(
-      item.organization_id, item.agent_id, item.actor_type, item.actor_id,
+      item.organization_id, item.chain_position, item.agent_id, item.actor_type, item.actor_id,
       item.action, item.summary, item.decision, item.tool, item.amount_cents,
       item.payload, item.occurred_at, previous
     );
@@ -290,6 +305,7 @@ BEGIN
       RETURN;
     END IF;
     previous := item.hash;
+    expected_chain_position := expected_chain_position + 1;
   END LOOP;
 
   RETURN QUERY SELECT true, count_checked, NULL::bigint;

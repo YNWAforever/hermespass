@@ -152,6 +152,7 @@ export const agentAuditLogs = pgTable(
   "agent_audit_logs",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
+    chainPosition: bigint("chain_position", { mode: "number" }).notNull().default(0),
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "restrict" }),
@@ -170,6 +171,10 @@ export const agentAuditLogs = pgTable(
   },
   (table) => [
     index("agent_audit_logs_organization_id_id_idx").on(table.organizationId, table.id),
+    uniqueIndex("agent_audit_logs_organization_chain_position_key").on(
+      table.organizationId,
+      table.chainPosition,
+    ),
     index("agent_audit_logs_agent_id_idx").on(table.agentId),
   ],
 );

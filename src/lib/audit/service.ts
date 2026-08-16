@@ -30,7 +30,7 @@ export async function listAudit(actor: Actor): Promise<AuditDto[]> {
       .from(agentAuditLogs)
       .leftJoin(agents, eq(agentAuditLogs.agentId, agents.id))
       .where(and(eq(agentAuditLogs.organizationId, actor.organizationId)))
-      .orderBy(asc(agentAuditLogs.id));
+      .orderBy(asc(agentAuditLogs.chainPosition));
     return rows.map(({ audit, agentDid, agentSlug }) => ({
       id: audit.id,
       timestamp: audit.occurredAt.toISOString(),
@@ -66,8 +66,9 @@ export async function verifyAudit(actor: Actor) {
       .select()
       .from(agentAuditLogs)
       .where(eq(agentAuditLogs.organizationId, actor.organizationId))
-      .orderBy(asc(agentAuditLogs.id));
+      .orderBy(asc(agentAuditLogs.chainPosition));
     const entries: AuditChainEntry[] = rows.map((row) => ({
+      chainPosition: row.chainPosition,
       organizationId: row.organizationId,
       agentId: row.agentId,
       actorType: row.actorType,

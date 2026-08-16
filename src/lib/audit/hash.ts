@@ -3,6 +3,7 @@ import { webcrypto } from "node:crypto";
 const cryptoApi = globalThis.crypto ?? webcrypto;
 
 export type AuditEntryForHash = {
+  chainPosition: number;
   organizationId: string;
   agentId: string | null;
   actorType: string;
@@ -19,7 +20,8 @@ export type AuditEntryForHash = {
 
 export function canonicalAuditInput(entry: AuditEntryForHash): string {
   return JSON.stringify([
-    1,
+    2,
+    entry.chainPosition,
     entry.organizationId,
     entry.agentId ?? "",
     entry.actorType,

@@ -15,6 +15,7 @@ test-results/
 blob-report/
 .worktrees/
 .codebase-memory/
+.superpowers/
 *.tsbuildinfo
 dist
 dist-ssr
