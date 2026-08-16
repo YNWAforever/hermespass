@@ -226,17 +226,17 @@ bun run build
 - Create `tests/e2e/routes.spec.ts`, `interactions.spec.ts`, `visual-parity.spec.ts`
 - Create `tests/e2e/support/stable-page.ts`, `image-diff.ts`
 
-- [ ] Define the exact 44-route manifest once and require every route to return 200 on both legacy and Next; require representative title/meta equality and invalid-route 404s.
-- [ ] Run the interaction cases from Tasks 3–5 against Next.
-- [ ] Compare legacy and Next in the same Chromium process at 1440×900 and 390×844 for:
+- [x] Define the exact 44-route manifest once and require every route to return 200 on both legacy and Next; require representative title/meta equality and invalid-route 404s.
+- [x] Run the interaction cases from Tasks 3–5 against Next.
+- [x] Compare legacy and Next in the same Chromium process at 1440×900 and 390×844 for:
 
   - `/`, `/contact`, `/roi-calculator`
   - `/zh-hant`, `/zh-hans/pricing`
   - `/dashboard` and all four dashboard subpages
 
-- [ ] Freeze time, disable animations/transitions, wait for fonts and hydration, require identical screenshot dimensions, and fail when differing pixels exceed 0.5%. Save legacy, Next, and diff images on failure.
-- [ ] Use the root checkout at `b22f167` as the local legacy server and the feature worktree as Next; do not commit platform-dependent golden screenshots.
-- [ ] Run all 44 route checks, interactions, and 20 visual comparisons successfully, then commit the parity suite.
+- [x] Freeze time, disable animations/transitions, wait for fonts and hydration, require identical screenshot dimensions, and fail when differing pixels exceed 0.5%. Save legacy, Next, and diff images on failure.
+- [x] Use the root checkout at `b22f167` as the local legacy server and the feature worktree as Next; do not commit platform-dependent golden screenshots.
+- [x] Run all 44 route checks, interactions, and 20 visual comparisons successfully, then commit the parity suite.
 
 ### Task 8: CI, draft PR, preview verification, and approval gates
 
