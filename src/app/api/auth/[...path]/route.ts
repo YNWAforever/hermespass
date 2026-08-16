@@ -1,8 +1,7 @@
-import { auth } from "@/lib/auth/server";
+import { getAuth } from "@/lib/auth/server";
+import { errorResponse } from "@/lib/http";
 
 type AuthRouteContext = { params: Promise<{ path: string[] }> };
-
-const handlers = auth.handler();
 
 function isSignup(request: Request): boolean {
   return new URL(request.url).pathname.includes("/sign-up");
@@ -22,9 +21,21 @@ function rejectSignup(request: Request): Response | null {
 }
 
 export async function GET(request: Request, context: AuthRouteContext) {
-  return rejectSignup(request) ?? handlers.GET(request, context);
+  const rejected = rejectSignup(request);
+  if (rejected) return rejected;
+  try {
+    return getAuth().handler().GET(request, context);
+  } catch (error) {
+    return errorResponse(request, error);
+  }
 }
 
 export async function POST(request: Request, context: AuthRouteContext) {
-  return rejectSignup(request) ?? handlers.POST(request, context);
+  const rejected = rejectSignup(request);
+  if (rejected) return rejected;
+  try {
+    return getAuth().handler().POST(request, context);
+  } catch (error) {
+    return errorResponse(request, error);
+  }
 }

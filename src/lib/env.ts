@@ -1,6 +1,3 @@
-const BUILD_SAFE_AUTH_URL = "http://127.0.0.1:3000";
-const BUILD_SAFE_COOKIE_SECRET = "phase-1-build-cookie-secret-change-me";
-
 export type KeyEnvironment = "production" | "development" | "preview";
 
 export function databaseUrl(): string {
@@ -16,11 +13,19 @@ export function migrationDatabaseUrl(): string {
 }
 
 export function neonAuthBaseUrl(): string {
-  return process.env["NEON_AUTH_BASE_URL"] ?? BUILD_SAFE_AUTH_URL;
+  const value = process.env["NEON_AUTH_BASE_URL"];
+  if (!value) throw new Error("NEON_AUTH_BASE_URL is required for Auth-backed requests");
+  return value;
 }
 
 export function neonAuthCookieSecret(): string {
-  return process.env["NEON_AUTH_COOKIE_SECRET"] ?? BUILD_SAFE_COOKIE_SECRET;
+  const value = process.env["NEON_AUTH_COOKIE_SECRET"];
+  if (!value) throw new Error("NEON_AUTH_COOKIE_SECRET is required for Auth-backed requests");
+  return value;
+}
+
+export function hasNeonAuthConfig(): boolean {
+  return Boolean(process.env["NEON_AUTH_BASE_URL"] && process.env["NEON_AUTH_COOKIE_SECRET"]);
 }
 
 export function keyEnvironment(): KeyEnvironment {

@@ -2,24 +2,19 @@
 
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth/server";
+import { getAuth } from "@/lib/auth/server";
+import { safeDashboardDestination } from "@/lib/auth/redirects";
 
 export type LoginState = { error?: string };
-
-function safeNext(value: FormDataEntryValue | null): string {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//"))
-    return "/dashboard";
-  return value;
-}
 
 export async function signInAction(_: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = safeNext(formData.get("next"));
+  const next = safeDashboardDestination(formData.get("next"));
   if (!email || !password) return { error: "Email and password are required." };
 
   try {
-    const { error } = await auth.signIn.email({ email, password });
+    const { error } = await getAuth().signIn.email({ email, password });
     if (error) return { error: "Unable to sign in with those credentials." };
   } catch {
     return { error: "Authentication is not available for this environment." };
@@ -29,7 +24,7 @@ export async function signInAction(_: LoginState, formData: FormData): Promise<L
 
 export async function signOutAction() {
   try {
-    await auth.signOut();
+    await getAuth().signOut();
   } catch {
     // Treat an already-expired session as signed out.
   }

@@ -95,26 +95,17 @@ describe("dashboard mock interactions", () => {
     expect(sliders[1]).toHaveAttribute("aria-valuenow", "0");
   });
 
-  it("prints a report and downloads the compliance CSV", async () => {
+  it("prints a report and links to the server compliance CSV", async () => {
     const user = userEvent.setup();
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
-    const createObjectURL = vi.fn(() => "blob:hermespass-audit");
-    const revokeObjectURL = vi.fn();
-    Object.defineProperties(URL, {
-      createObjectURL: { configurable: true, value: createObjectURL },
-      revokeObjectURL: { configurable: true, value: revokeObjectURL },
-    });
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
     renderWithHermes(<ComplianceClient />);
 
     await user.click(screen.getByRole("button", { name: "PDF report" }));
     expect(print).toHaveBeenCalledOnce();
 
-    await user.click(screen.getByRole("button", { name: "1-click regulatory export" }));
-    expect(createObjectURL).toHaveBeenCalledOnce();
-    expect(click).toHaveBeenCalledOnce();
-    expect(revokeObjectURL).toHaveBeenCalledWith("blob:hermespass-audit");
+    expect(screen.getByRole("link", { name: "1-click regulatory export" })).toHaveAttribute(
+      "href",
+      "/api/audit/export.csv",
+    );
   });
 });

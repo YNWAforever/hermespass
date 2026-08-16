@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { orgMembers, organizations } from "@/db/schema";
 import { withUserTransaction, type Transaction } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth/server";
+import { isE2eUser } from "@/lib/auth/e2e-adapter";
 import {
   AuthRequiredError,
   MembershipRequiredError,
@@ -30,6 +31,18 @@ export type Actor = {
 export async function getCurrentActor(): Promise<Actor | null> {
   const user = await getSessionUser();
   if (!user) return null;
+
+  if (isE2eUser(user.id)) {
+    return {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      organizationName: "HermesPass E2E",
+      organizationSlug: "hermespass-e2e",
+      role: "owner",
+    };
+  }
 
   const membership = await withUserTransaction(user.id, async (tx) => {
     const rows = await tx

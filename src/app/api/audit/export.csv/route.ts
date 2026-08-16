@@ -1,5 +1,6 @@
 import { requireActor } from "@/lib/auth/authorization";
-import { csvCell, listAudit } from "@/lib/audit/service";
+import { buildAuditCsv, e2eAuditFixture, listAudit } from "@/lib/audit/service";
+import { isE2eUser } from "@/lib/auth/e2e-adapter";
 import { errorResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -7,32 +8,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const actor = await requireActor();
-    const entries = await listAudit(actor);
-    const headers = [
-      "id",
-      "timestamp",
-      "agent_did",
-      "action",
-      "summary",
-      "payload_hash",
-      "previous_hash",
-      "signature_valid",
-      "decision",
-      "tool",
-    ];
-    const rows = entries.map((entry) => [
-      entry.id,
-      entry.timestamp,
-      entry.agentDid,
-      entry.action,
-      entry.summary,
-      entry.payloadHash,
-      entry.previousHash,
-      entry.signatureValid,
-      entry.decision,
-      entry.tool,
-    ]);
-    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+    const entries = isE2eUser(actor.userId) ? e2eAuditFixture() : await listAudit(actor);
+    const csv = buildAuditCsv(entries);
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",

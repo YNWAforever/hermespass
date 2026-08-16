@@ -19,7 +19,7 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
     data?: T;
     error?: { code?: string; message?: string; fieldErrors?: Record<string, string[]> };
   };
-  if (!response.ok || !body.data) {
+  if (!response.ok || body.data === undefined) {
     const error = new Error(body.error?.message ?? "Request failed") as ApiError;
     error.code = body.error?.code;
     error.fieldErrors = body.error?.fieldErrors;
@@ -28,8 +28,9 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
   return body.data;
 }
 
-const isTest = process.env["NODE_ENV"] === "test";
-const testAgentData = isTest
+const usesFixtureData =
+  process.env["NODE_ENV"] === "test" || process.env.NEXT_PUBLIC_HERMESPASS_E2E_ADAPTER === "1";
+const testAgentData = usesFixtureData
   ? {
       agents: SEED_AGENTS.map((agent) => ({
         ...agent,
@@ -41,7 +42,7 @@ const testAgentData = isTest
       })) as AgentDto[],
     }
   : undefined;
-const testAuditData = isTest
+const testAuditData = usesFixtureData
   ? {
       entries: buildChain(SEED_EVENTS).map((entry) => ({
         id: entry.index,
@@ -52,7 +53,6 @@ const testAuditData = isTest
         summary: entry.action,
         payloadHash: entry.payloadHash,
         previousHash: entry.prevHash,
-        signatureValid: entry.signatureValid,
         decision: entry.decision,
         tool: entry.action,
       })),
@@ -62,7 +62,10 @@ const testAuditData = isTest
 export function useAgents() {
   return useQuery({
     queryKey: ["agents"],
-    queryFn: () => requestJson<{ agents: AgentDto[] }>("/api/agents"),
+    queryFn: () =>
+      testAgentData
+        ? Promise.resolve(testAgentData)
+        : requestJson<{ agents: AgentDto[] }>("/api/agents"),
     ...(testAgentData ? { initialData: testAgentData } : {}),
     staleTime: 15_000,
   });
@@ -79,7 +82,7 @@ export function useIssueAgent() {
       spendCap: number;
       governanceNotes: string | null;
     }) => {
-      if (isTest) {
+      if (usesFixtureData) {
         const current = client.getQueryData<{ agents: AgentDto[] }>(["agents"])?.agents ?? [];
         const slugBase =
           input.name
@@ -119,7 +122,14 @@ export function useIssueAgent() {
       });
     },
     onSuccess: () => {
-      if (!isTest) void client.invalidateQueries({ queryKey: ["agents"] });
+      void client.invalidateQueries({
+        queryKey: ["agents"],
+        ...(usesFixtureData ? { refetchType: "none" as const } : {}),
+      });
+      void client.invalidateQueries({
+        queryKey: ["audit"],
+        ...(usesFixtureData ? { refetchType: "none" as const } : {}),
+      });
     },
   });
 }
@@ -143,8 +153,32 @@ export type AuditEntry = NonNullable<typeof testAuditData>["entries"][number];
 export function useAudit() {
   return useQuery({
     queryKey: ["audit"],
-    queryFn: () => requestJson<{ entries: AuditEntry[] }>("/api/audit"),
+    queryFn: () =>
+      testAuditData
+        ? Promise.resolve(testAuditData)
+        : requestJson<{ entries: AuditEntry[] }>("/api/audit"),
     ...(testAuditData ? { initialData: testAuditData } : {}),
+    staleTime: 15_000,
+  });
+}
+
+export type AuditVerification = {
+  valid: boolean;
+  checked: number;
+  firstInvalid: number | null;
+};
+
+export function useAuditVerification() {
+  return useQuery({
+    queryKey: ["audit", "verification"],
+    queryFn: () =>
+      usesFixtureData
+        ? Promise.resolve<AuditVerification>({
+            valid: true,
+            checked: testAuditData?.entries.length ?? 0,
+            firstInvalid: null,
+          })
+        : requestJson<AuditVerification>("/api/audit/verify"),
     staleTime: 15_000,
   });
 }

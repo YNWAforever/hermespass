@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -68,6 +69,28 @@ async function stopServer(child: ChildProcess) {
 
 export default async function globalSetup() {
   const projectDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+  const e2eAuthSecret = randomBytes(32).toString("base64url");
+  const e2eAuthStatePath = path.join(projectDirectory, "test-results", "e2e-auth-state.json");
+  await mkdir(path.dirname(e2eAuthStatePath), { recursive: true });
+  await writeFile(
+    e2eAuthStatePath,
+    JSON.stringify({
+      cookies: [
+        {
+          name: "HERMESPASS_E2E_AUTH_COOKIE",
+          value: e2eAuthSecret,
+          domain: "127.0.0.1",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: false,
+          sameSite: "Lax",
+        },
+      ],
+      origins: [],
+    }),
+    { encoding: "utf8", mode: 0o600 },
+  );
   const legacyDirectory = process.env["LEGACY_DIR"]
     ? path.resolve(process.env["LEGACY_DIR"])
     : path.resolve(projectDirectory, "../..");
@@ -91,6 +114,9 @@ export default async function globalSetup() {
       env: {
         HERMESPASS_NEXT_DIR: projectDirectory,
         HERMESPASS_SERVER_PORT: new URL(nextUrl).port || "3101",
+        HERMESPASS_E2E_ADAPTER: "1",
+        HERMESPASS_E2E_AUTH_SECRET: e2eAuthSecret,
+        NEXT_PUBLIC_HERMESPASS_E2E_ADAPTER: "1",
       },
     },
   ];
@@ -102,7 +128,8 @@ export default async function globalSetup() {
     const restoreResults = await Promise.allSettled(
       [...snapshots].map(([filePath, contents]) => writeFile(filePath, contents)),
     );
-    const failure = [...stopResults, ...restoreResults].find(
+    const authStateResults = await Promise.allSettled([rm(e2eAuthStatePath, { force: true })]);
+    const failure = [...stopResults, ...restoreResults, ...authStateResults].find(
       (result): result is PromiseRejectedResult => result.status === "rejected",
     );
     if (failure) throw failure.reason;

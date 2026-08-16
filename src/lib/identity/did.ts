@@ -10,16 +10,31 @@ export function agentDidForOrigin(origin: string, slug: string): string {
   return `${didWebForOrigin(origin)}:agent:${encodeURIComponent(slug)}`;
 }
 
-export function issuerDidDocument(origin: string, publicJwk: PublicJwk, keyFragment = "issuer-1") {
+type IssuerVerificationKey = { keyFragment: string; publicJwk: PublicJwk; active?: boolean };
+
+export function issuerDidDocument(
+  origin: string,
+  publicJwkOrKeys: PublicJwk | IssuerVerificationKey[],
+  keyFragment = "issuer-1",
+) {
   const did = didWebForOrigin(origin);
+  const keys = Array.isArray(publicJwkOrKeys)
+    ? publicJwkOrKeys
+    : [{ keyFragment, publicJwk: publicJwkOrKeys }];
+  const activeMethodIds = keys
+    .filter((key) => key.active !== false)
+    .map((key) => `${did}#${key.keyFragment}`);
   return {
     "@context": ["https://www.w3.org/ns/did/v1"],
     id: did,
-    verificationMethod: [
-      { id: `${did}#${keyFragment}`, type: "JsonWebKey", controller: did, publicKeyJwk: publicJwk },
-    ],
-    authentication: [`${did}#${keyFragment}`],
-    assertionMethod: [`${did}#${keyFragment}`],
+    verificationMethod: keys.map((key) => ({
+      id: `${did}#${key.keyFragment}`,
+      type: "JsonWebKey",
+      controller: did,
+      publicKeyJwk: key.publicJwk,
+    })),
+    authentication: activeMethodIds,
+    assertionMethod: activeMethodIds,
   };
 }
 
@@ -28,6 +43,7 @@ export function agentDidDocument(
   slug: string,
   publicJwk: PublicJwk,
   keyFragment = "agent-1",
+  active = true,
 ) {
   const did = agentDidForOrigin(origin, slug);
   return {
@@ -36,8 +52,8 @@ export function agentDidDocument(
     verificationMethod: [
       { id: `${did}#${keyFragment}`, type: "JsonWebKey", controller: did, publicKeyJwk: publicJwk },
     ],
-    authentication: [`${did}#${keyFragment}`],
-    assertionMethod: [`${did}#${keyFragment}`],
+    authentication: active ? [`${did}#${keyFragment}`] : [],
+    assertionMethod: active ? [`${did}#${keyFragment}`] : [],
   };
 }
 

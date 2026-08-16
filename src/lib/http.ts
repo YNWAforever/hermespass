@@ -11,6 +11,15 @@ export function requestId(request: Request): string {
   return request.headers.get("x-request-id") ?? randomUUID();
 }
 
+export function jsonError(
+  request: Request,
+  code: string,
+  message: string,
+  status: number,
+): Response {
+  return Response.json({ error: { code, message, requestId: requestId(request) } }, { status });
+}
+
 export function errorResponse(request: Request, error: unknown): Response {
   const id = requestId(request);
   if (error instanceof AuthRequiredError)
@@ -52,6 +61,8 @@ export function errorResponse(request: Request, error: unknown): Response {
       },
       { status: 400 },
     );
+  if (error instanceof SyntaxError)
+    return jsonError(request, "INVALID_JSON", "The request body must contain valid JSON.", 400);
 
   const message = error instanceof Error ? error.message : "";
   if (message === "AGENT_NOT_FOUND")
@@ -80,6 +91,16 @@ export function errorResponse(request: Request, error: unknown): Response {
         },
       },
       { status: 503 },
+    );
+  if (
+    message === "NEON_AUTH_BASE_URL is required for Auth-backed requests" ||
+    message === "NEON_AUTH_COOKIE_SECRET is required for Auth-backed requests"
+  )
+    return jsonError(
+      request,
+      "AUTH_UNAVAILABLE",
+      "Authentication configuration is unavailable.",
+      503,
     );
   console.error("HermesPass request failed", { requestId: id, error: message || "unknown" });
   return Response.json(

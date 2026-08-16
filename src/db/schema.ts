@@ -2,14 +2,17 @@ import {
   bigint,
   bigserial,
   customType,
+  foreignKey,
   index,
   jsonb,
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -112,6 +115,7 @@ export const agents = pgTable(
     uniqueIndex("agents_slug_key").on(table.slug),
     uniqueIndex("agents_did_key").on(table.did),
     uniqueIndex("agents_credential_id_key").on(table.credentialId),
+    unique("agents_id_organization_id_key").on(table.id, table.organizationId),
     index("agents_organization_id_idx").on(table.organizationId),
     index("agents_status_idx").on(table.status),
   ],
@@ -121,9 +125,7 @@ export const agentKeys = pgTable(
   "agent_keys",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    agentId: uuid("agent_id")
-      .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id").notNull(),
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
@@ -145,6 +147,11 @@ export const agentKeys = pgTable(
       .on(table.agentId)
       .where(sql`${table.status} = 'active'`),
     index("agent_keys_organization_id_idx").on(table.organizationId),
+    foreignKey({
+      name: "agent_keys_agent_organization_fk",
+      columns: [table.agentId, table.organizationId],
+      foreignColumns: [agents.id, agents.organizationId],
+    }).onDelete("cascade"),
   ],
 );
 
@@ -156,7 +163,7 @@ export const agentAuditLogs = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "restrict" }),
-    agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+    agentId: uuid("agent_id"),
     actorType: text("actor_type").notNull(),
     actorId: text("actor_id").notNull(),
     action: text("action").notNull(),
@@ -166,6 +173,7 @@ export const agentAuditLogs = pgTable(
     amountCents: bigint("amount_cents", { mode: "number" }),
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+    hashVersion: smallint("hash_version").notNull().default(3),
     prevHash: bytea("prev_hash"),
     hash: bytea("hash").notNull(),
   },
@@ -176,6 +184,11 @@ export const agentAuditLogs = pgTable(
       table.chainPosition,
     ),
     index("agent_audit_logs_agent_id_idx").on(table.agentId),
+    foreignKey({
+      name: "agent_audit_logs_agent_organization_fk",
+      columns: [table.agentId, table.organizationId],
+      foreignColumns: [agents.id, agents.organizationId],
+    }).onDelete("restrict"),
   ],
 );
 

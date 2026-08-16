@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-const NEXT_BASE_URL = process.env["NEXT_BASE_URL"] ?? "http://127.0.0.1:3101";
-const AUTH_STATE = process.env["PLAYWRIGHT_AUTH_STATE"];
+import { E2E_AUTH_STORAGE_STATE } from "./support/auth-state";
 
+const NEXT_BASE_URL = process.env["NEXT_BASE_URL"] ?? "http://127.0.0.1:3101";
 test.describe("Next interactions", () => {
   test("contact validation and simulated submission", async ({ page }) => {
     await page.goto(`${NEXT_BASE_URL}/contact`);
@@ -51,8 +51,7 @@ test.describe("Next interactions", () => {
   });
 
   test.describe("authenticated dashboard interactions", () => {
-    test.skip(!AUTH_STATE, "requires a Neon Auth test storage state");
-    test.use({ storageState: AUTH_STATE ?? undefined });
+    test.use({ storageState: E2E_AUTH_STORAGE_STATE });
 
     test("issuing a passport does not create a scoped wallet", async ({ page }) => {
       await page.goto(`${NEXT_BASE_URL}/dashboard/agents`);
@@ -115,7 +114,7 @@ test.describe("Next interactions", () => {
       await expect(page.locator("html")).toHaveAttribute("data-print-called", "true");
 
       const downloadPromise = page.waitForEvent("download");
-      await page.getByRole("button", { name: "1-click regulatory export" }).click();
+      await page.getByRole("link", { name: "1-click regulatory export" }).click();
       const download = await downloadPromise;
       expect(download.suggestedFilename()).toMatch(/^hermespass-audit-\d{4}-\d{2}-\d{2}\.csv$/);
     });

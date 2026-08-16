@@ -25,32 +25,41 @@ import {
 import { assertCanMutate, type Actor, withActorTransaction } from "@/lib/auth/authorization";
 import { agentDto, type AgentDto } from "@/lib/agents/types";
 
-export const issueAgentInput = z.object({
-  name: z.string().trim().min(1).max(120),
-  role: z.string().trim().min(1).max(120),
-  risk: z.enum(["low", "medium", "high"]),
-  scopes: z
-    .array(
-      z.enum([
-        "catalog.read",
-        "crm.read",
-        "refund.issue",
-        "email.dispatch",
-        "checkout.external",
-        "invoice.approve",
-        "ads.bid",
-        "vendor.contract",
-      ]),
-    )
-    .min(1)
-    .max(8),
-  spendCap: z
-    .number()
-    .finite()
-    .min(0)
-    .max(Number.MAX_SAFE_INTEGER / 100),
-  governanceNotes: z.string().trim().max(4000).nullable().optional(),
-});
+export const issueAgentInput = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    role: z.string().trim().min(1).max(120),
+    risk: z.enum(["low", "medium", "high"]),
+    scopes: z
+      .array(
+        z.enum([
+          "catalog.read",
+          "crm.read",
+          "refund.issue",
+          "email.dispatch",
+          "checkout.external",
+          "invoice.approve",
+          "ads.bid",
+          "vendor.contract",
+        ]),
+      )
+      .min(1)
+      .max(8),
+    spendCap: z
+      .number()
+      .finite()
+      .min(0)
+      .max(Number.MAX_SAFE_INTEGER / 100)
+      .refine(
+        (value) => Math.abs(value * 100 - Math.round(value * 100)) < Number.EPSILON * 100,
+        "Spend cap must have at most two decimal places",
+      ),
+    governanceNotes: z.string().trim().max(4000).nullable().optional(),
+  })
+  .transform(({ spendCap, ...input }) => ({
+    ...input,
+    spendCapCents: Math.round(spendCap * 100),
+  }));
 
 export type IssueAgentInput = z.infer<typeof issueAgentInput>;
 
@@ -98,7 +107,14 @@ export async function listAgents(actor: Actor): Promise<AgentDto[]> {
       .select(dtoSelection())
       .from(agents)
       .innerJoin(organizations, eq(agents.organizationId, organizations.id))
-      .leftJoin(agentKeys, and(eq(agentKeys.agentId, agents.id), eq(agentKeys.status, "active")))
+      .leftJoin(
+        agentKeys,
+        and(
+          eq(agentKeys.agentId, agents.id),
+          eq(agentKeys.organizationId, agents.organizationId),
+          eq(agentKeys.status, "active"),
+        ),
+      )
       .where(eq(agents.organizationId, actor.organizationId))
       .orderBy(desc(agents.createdAt));
     return rows.map(mapRow);
@@ -173,7 +189,7 @@ export async function issueAgent(actor: Actor, input: unknown): Promise<AgentDto
         ownerOrganizationSlug: actor.organizationSlug,
         riskTier: parsed.risk,
         capabilities: parsed.scopes,
-        spendCapHKD: parsed.spendCap,
+        spendCapHKD: parsed.spendCapCents / 100,
       },
     });
     const credentialJws = await signPassportCredential(
@@ -191,7 +207,7 @@ export async function issueAgent(actor: Actor, input: unknown): Promise<AgentDto
       role: parsed.role,
       risk: parsed.risk,
       scopes: parsed.scopes,
-      spendCapCents: Math.round(parsed.spendCap * 100),
+      spendCapCents: parsed.spendCapCents,
       governanceNotes: parsed.governanceNotes ?? null,
       status: "active",
       credentialId,
@@ -231,7 +247,14 @@ export async function issueAgent(actor: Actor, input: unknown): Promise<AgentDto
       .select(dtoSelection())
       .from(agents)
       .innerJoin(organizations, eq(agents.organizationId, organizations.id))
-      .leftJoin(agentKeys, and(eq(agentKeys.agentId, agents.id), eq(agentKeys.status, "active")))
+      .leftJoin(
+        agentKeys,
+        and(
+          eq(agentKeys.agentId, agents.id),
+          eq(agentKeys.organizationId, agents.organizationId),
+          eq(agentKeys.status, "active"),
+        ),
+      )
       .where(eq(agents.id, agentId))
       .limit(1);
     if (!rows[0]) throw new Error("ISSUANCE_READBACK_FAILED");
@@ -242,44 +265,26 @@ export async function issueAgent(actor: Actor, input: unknown): Promise<AgentDto
 export async function revokeAgent(actor: Actor, agentId: string): Promise<AgentDto> {
   assertCanMutate(actor);
   return withActorTransaction(actor, async (tx) => {
+    await tx.execute(
+      sql`select changed from hermes_revoke_agent(${agentId}::uuid, ${actor.organizationId}::uuid, ${actor.userId})`,
+    );
     const rows = await tx
       .select(dtoSelection())
       .from(agents)
       .innerJoin(organizations, eq(agents.organizationId, organizations.id))
-      .leftJoin(agentKeys, and(eq(agentKeys.agentId, agents.id), eq(agentKeys.status, "active")))
+      .leftJoin(
+        agentKeys,
+        and(
+          eq(agentKeys.agentId, agents.id),
+          eq(agentKeys.organizationId, agents.organizationId),
+          eq(agentKeys.status, "active"),
+        ),
+      )
       .where(and(eq(agents.id, agentId), eq(agents.organizationId, actor.organizationId)))
       .limit(1);
     const current = rows[0];
     if (!current) throw new Error("AGENT_NOT_FOUND");
-    if (current.row.status === "revoked") return mapRow(current);
-
-    await tx
-      .update(agents)
-      .set({
-        status: "revoked",
-        revokedAt: new Date(),
-        revokedBy: actor.userId,
-        updatedAt: new Date(),
-      })
-      .where(eq(agents.id, agentId));
-    await tx
-      .update(agentKeys)
-      .set({ status: "revoked", revokedAt: new Date() })
-      .where(eq(agentKeys.agentId, agentId));
-    await tx.insert(agentAuditLogs).values({
-      organizationId: actor.organizationId,
-      agentId,
-      actorType: "user",
-      actorId: actor.userId,
-      action: "passport.revoked",
-      summary: `Passport revoked for ${current.row.name}`,
-      decision: "deny",
-      tool: "passport.revoke",
-      payload: { did: current.row.did, credentialId: current.row.credentialId },
-      hash: Buffer.alloc(32),
-    });
-
-    return { ...mapRow(current), status: "revoked" as const };
+    return mapRow(current);
   });
 }
 
@@ -325,6 +330,19 @@ export async function getPublicIssuerKey(did: string, keyFragment?: string) {
   });
 }
 
+export async function getPublicIssuerKeys(did: string) {
+  return withPublicDatabase(async (db) => {
+    const result = await db.execute(sql`select * from hermes_public_issuer_keys(${did})`);
+    return result.rows as Array<{
+      did: string;
+      key_fragment: string;
+      public_jwk: JsonWebKey;
+      thumbprint: string;
+      active: boolean;
+    }>;
+  });
+}
+
 function credentialKeyFragment(jws: string): string | undefined {
   try {
     const encoded = jws.split(".")[0];
@@ -362,6 +380,20 @@ export async function verifyPublicAgent(slug: string) {
       agent.credential_jws,
       issuer.public_jwk,
       `${issuer.did}#${issuer.key_fragment}`,
+      {
+        credentialId: agent.credential_id,
+        issuerDid: issuer.did,
+        subjectDid: agent.did,
+        name: agent.name,
+        role: agent.role,
+        organizationName: agent.organization_name,
+        organizationSlug: agent.organization_slug,
+        risk: agent.risk,
+        scopes: agent.scopes,
+        spendCapCents: Number(agent.spend_cap_cents),
+        issuedAt: agent.issued_at,
+        expiresAt: agent.expires_at,
+      },
     );
     const now = Date.now();
     const expired = new Date(verified.credential.validUntil).getTime() < now;
@@ -391,6 +423,20 @@ export async function verifyPublicAgentByDid(did: string) {
       agent.credential_jws,
       issuer.public_jwk,
       `${issuer.did}#${issuer.key_fragment}`,
+      {
+        credentialId: agent.credential_id,
+        issuerDid: issuer.did,
+        subjectDid: agent.did,
+        name: agent.name,
+        role: agent.role,
+        organizationName: agent.organization_name,
+        organizationSlug: agent.organization_slug,
+        risk: agent.risk,
+        scopes: agent.scopes,
+        spendCapCents: Number(agent.spend_cap_cents),
+        issuedAt: agent.issued_at,
+        expiresAt: agent.expires_at,
+      },
     );
     const expired = new Date(verified.credential.validUntil).getTime() < Date.now();
     const status = expired ? "expired" : agent.status;

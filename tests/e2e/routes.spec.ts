@@ -7,11 +7,10 @@ import {
   PUBLIC_ROUTES,
   ROUTES,
 } from "../fixtures/routes";
+import { E2E_AUTH_STORAGE_STATE } from "./support/auth-state";
 
 const LEGACY_BASE_URL = process.env["LEGACY_BASE_URL"] ?? "http://127.0.0.1:3100";
 const NEXT_BASE_URL = process.env["NEXT_BASE_URL"] ?? "http://127.0.0.1:3101";
-const AUTH_STATE = process.env["PLAYWRIGHT_AUTH_STATE"];
-
 async function metadataAt(page: Page, url: string) {
   const response = await page.goto(url, { waitUntil: "domcontentloaded" });
   expect(response?.status(), url).toBe(200);
@@ -55,8 +54,7 @@ test.describe("44-route contract", () => {
   }
 
   test.describe("authenticated dashboard route contract", () => {
-    test.skip(!AUTH_STATE, "requires a Neon Auth test storage state");
-    test.use({ storageState: AUTH_STATE ?? undefined });
+    test.use({ storageState: E2E_AUTH_STORAGE_STATE });
 
     for (const path of DASHBOARD_ROUTES) {
       test(`${path} returns 200 for an authorized member`, async ({ request }) => {

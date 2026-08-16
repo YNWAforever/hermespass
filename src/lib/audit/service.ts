@@ -3,6 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { agentAuditLogs, agents } from "@/db/schema";
 import { withActorTransaction } from "@/lib/auth/authorization";
 import type { Actor } from "@/lib/auth/authorization";
+import { buildChain, SEED_EVENTS } from "@/lib/hermes-data";
 
 export type AuditDto = {
   id: number;
@@ -13,10 +14,24 @@ export type AuditDto = {
   summary: string;
   payloadHash: string;
   previousHash: string;
-  signatureValid: boolean;
   decision: string | null;
   tool: string | null;
 };
+
+export function e2eAuditFixture(): AuditDto[] {
+  return buildChain(SEED_EVENTS).map((entry) => ({
+    id: entry.index,
+    timestamp: entry.timestamp,
+    agentDid: entry.agentSlug,
+    agentSlug: entry.agentSlug,
+    action: entry.action,
+    summary: entry.action,
+    payloadHash: entry.payloadHash,
+    previousHash: entry.prevHash,
+    decision: entry.decision,
+    tool: entry.action,
+  }));
+}
 
 function hex(value: Buffer | Uint8Array | null): string {
   return value ? Buffer.from(value).toString("hex") : "";
@@ -39,7 +54,6 @@ export async function listAudit(actor: Actor): Promise<AuditDto[]> {
       summary: audit.summary,
       payloadHash: hex(audit.hash),
       previousHash: hex(audit.prevHash),
-      signatureValid: true,
       decision: audit.decision,
       tool: audit.tool,
     }));
@@ -52,12 +66,20 @@ export async function verifyAudit(actor: Actor) {
       sql`select valid, checked, first_invalid from hermes_verify_audit_chain(${actor.organizationId})`,
     );
     const databaseVerification = databaseResult.rows[0] as
-      { valid: boolean; checked: number; first_invalid: number | null } | undefined;
+      | {
+          valid: boolean;
+          checked: number | string;
+          first_invalid: number | string | null;
+        }
+      | undefined;
     if (databaseVerification) {
       return {
         valid: databaseVerification.valid,
         checked: Number(databaseVerification.checked),
-        firstInvalid: databaseVerification.first_invalid,
+        firstInvalid:
+          databaseVerification.first_invalid === null
+            ? null
+            : Number(databaseVerification.first_invalid),
       };
     }
 
@@ -67,6 +89,32 @@ export async function verifyAudit(actor: Actor) {
 
 export function csvCell(value: unknown): string {
   const raw = String(value ?? "");
-  const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  const safe = /^[\s\u0000-\u001f\u007f]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
   return `"${safe.replaceAll('"', '""')}"`;
+}
+
+export function buildAuditCsv(entries: AuditDto[]): string {
+  const headers = [
+    "id",
+    "timestamp",
+    "agent_did",
+    "action",
+    "summary",
+    "payload_hash",
+    "previous_hash",
+    "decision",
+    "tool",
+  ];
+  const rows = entries.map((entry) => [
+    entry.id,
+    entry.timestamp,
+    entry.agentDid,
+    entry.action,
+    entry.summary,
+    entry.payloadHash,
+    entry.previousHash,
+    entry.decision,
+    entry.tool,
+  ]);
+  return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
