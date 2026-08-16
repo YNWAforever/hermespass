@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { RiskBadge, StatusBadge, VerifiedPill } from "@/components/hermes/badges";
+import { useActor } from "@/components/auth/actor-context";
 import { PageHeader } from "@/components/hermes/page-header";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,23 +29,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  TOOL_SCOPES,
-  credentialFor,
-  formatHKD,
-  type Agent,
-  type RiskTier,
-} from "@/lib/hermes-data";
-import { useHermes } from "@/lib/hermes-store";
+import { TOOL_SCOPES, formatHKD, type RiskTier } from "@/lib/hermes-data";
+import type { AgentDto } from "@/lib/agents/types";
+import { useAgents, useIssueAgent, useRevokeAgent } from "@/lib/agents/client";
 
 export function AgentsClient() {
-  const { agents } = useHermes();
+  const { data, isLoading, error } = useAgents();
+  const actor = useActor();
+  const canMutate = !actor || actor.role === "owner" || actor.role === "admin";
+  const agents = data?.agents;
   const [query, setQuery] = useState("");
   const [risk, setRisk] = useState<"all" | RiskTier>("all");
 
   const filtered = useMemo(
     () =>
-      agents.filter((agent) => {
+      (agents ?? []).filter((agent) => {
         const matchesQuery = `${agent.name} ${agent.org} ${agent.id}`
           .toLowerCase()
           .includes(query.toLowerCase());
@@ -59,7 +58,7 @@ export function AgentsClient() {
         eyebrow="Know Your Agent"
         title="Agent Directory & Passport Center"
         description="Every agent operating under your organisation carries a signed digital passport. Inspect its credential, capabilities and spend ceiling before it ever touches a tool."
-        actions={<IssuePassportDialog />}
+        actions={canMutate ? <IssuePassportDialog /> : null}
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -85,6 +84,14 @@ export function AgentsClient() {
         </Select>
       </div>
 
+      {isLoading ? (
+        <p className="panel p-8 text-sm text-muted-foreground">Loading passports…</p>
+      ) : null}
+      {error ? (
+        <p className="panel p-8 text-sm text-risk-high">
+          Unable to load passports: {error.message}
+        </p>
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-2">
         {filtered.map((agent, index) => (
           <motion.div
@@ -104,7 +111,11 @@ export function AgentsClient() {
   );
 }
 
-function PassportCard({ agent }: { agent: Agent }) {
+function PassportCard({ agent }: { agent: AgentDto }) {
+  const revoke = useRevokeAgent();
+  const actor = useActor();
+  const canMutate = !actor || actor.role === "owner" || actor.role === "admin";
+
   return (
     <article className="panel grid-backdrop relative overflow-hidden p-5">
       <div className="flex items-start justify-between gap-4">
@@ -166,14 +177,33 @@ function PassportCard({ agent }: { agent: Agent }) {
 
       <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
         <VerifiedPill />
-        <CredentialDialog agent={agent} />
+        <div className="flex items-center gap-2">
+          {canMutate && agent.status === "active" ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-risk-high hover:bg-risk-high/10 hover:text-risk-high"
+              disabled={revoke.isPending}
+              onClick={() => {
+                revoke.mutate(agent.databaseId, {
+                  onSuccess: () => toast.success("Passport revoked", { description: agent.id }),
+                  onError: (reason) =>
+                    toast.error("Unable to revoke passport", { description: reason.message }),
+                });
+              }}
+            >
+              {revoke.isPending ? "Revoking…" : "Revoke"}
+            </Button>
+          ) : null}
+          <CredentialDialog agent={agent} />
+        </div>
       </div>
     </article>
   );
 }
 
-function CredentialDialog({ agent }: { agent: Agent }) {
-  const credential = credentialFor(agent);
+function CredentialDialog({ agent }: { agent: AgentDto }) {
+  const credential = decodeCredential(agent.credentialJws, agent);
 
   return (
     <Dialog>
@@ -213,12 +243,37 @@ function CredentialDialog({ agent }: { agent: Agent }) {
   );
 }
 
+function decodeCredential(jws: string, agent: AgentDto) {
+  if (!jws) {
+    return {
+      id: agent.credentialId,
+      type: ["VerifiableCredential", "KyaAgentPassport"],
+      issuer: "did:web:hermespass.asia",
+      credentialSubject: {
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        capabilities: agent.scopes,
+      },
+    };
+  }
+  try {
+    const payload = jws.split(".")[1];
+    if (!payload) throw new Error("missing JWS payload");
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(
+      atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")),
+    ) as unknown;
+  } catch {
+    return { id: agent.credentialId, error: "Credential payload unavailable" };
+  }
+}
+
 function IssuePassportDialog() {
-  const { issuePassport } = useHermes();
+  const issue = useIssueAgent();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
-  const [org, setOrg] = useState("Hermes Holdings APAC");
   const [risk, setRisk] = useState<RiskTier>("low");
   const [scopes, setScopes] = useState<string[]>(["catalog.read"]);
   const [spendCap, setSpendCap] = useState("500");
@@ -229,22 +284,30 @@ function IssuePassportDialog() {
       toast.error("Agent name is required to mint a passport.");
       return;
     }
-    const created = issuePassport({
-      name: name.trim(),
-      role: role.trim() || "Unscoped operator",
-      org: org.trim(),
-      risk,
-      scopes,
-      spendCap: Number(spendCap) || 0,
-    });
-    toast.success("Passport issued", {
-      description: `${created.id} — Ed25519 key sealed in vault.`,
-    });
-    setOpen(false);
-    setName("");
-    setRole("");
-    setNotes("");
-    setScopes(["catalog.read"]);
+    issue.mutate(
+      {
+        name: name.trim(),
+        role: role.trim() || "Unscoped operator",
+        risk,
+        scopes,
+        spendCap: Number(spendCap) || 0,
+        governanceNotes: notes.trim() || null,
+      },
+      {
+        onSuccess: ({ agent }) => {
+          toast.success("Passport issued", {
+            description: `${agent.id} — Ed25519 key sealed with envelope encryption.`,
+          });
+          setOpen(false);
+          setName("");
+          setRole("");
+          setNotes("");
+          setScopes(["catalog.read"]);
+        },
+        onError: (reason) =>
+          toast.error("Unable to issue passport", { description: reason.message }),
+      },
+    );
   }
 
   return (
@@ -292,7 +355,7 @@ function IssuePassportDialog() {
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="agent-org">Owner organisation</Label>
-              <Input id="agent-org" value={org} onChange={(event) => setOrg(event.target.value)} />
+              <Input id="agent-org" value="Current organisation" readOnly disabled />
             </div>
             <div className="space-y-1.5">
               <Label>Risk tier</Label>
@@ -359,8 +422,8 @@ function IssuePassportDialog() {
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} className="shadow-glow-emerald">
-            Mint passport
+          <Button onClick={submit} disabled={issue.isPending} className="shadow-glow-emerald">
+            {issue.isPending ? "Minting…" : "Mint passport"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -46,7 +46,9 @@ must keep all Auth and database calls server-side, set a transaction-local
 tenant claim before protected queries, and test the role/RLS matrix in CI.
 The database owner can still alter data, so the audit chain is tamper-evident
 to the application role rather than an immutable ledger against platform
-administrators.
+administrators. Envelope encryption limits a database-only compromise, but a
+combined application-runtime and KEK compromise can still decrypt private key
+material; key access therefore remains a server-only operational boundary.
 
 Project creation, Vercel integration, key provisioning, user seeding, domain
 attachment, and production deployment remain explicit approval gates.

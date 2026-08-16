@@ -6,10 +6,26 @@ import { toast } from "sonner";
 import { DecisionBadge } from "@/components/hermes/badges";
 import { PageHeader } from "@/components/hermes/page-header";
 import { Button } from "@/components/ui/button";
-import { useHermes } from "@/lib/hermes-store";
+import { useAudit } from "@/lib/agents/client";
+import { useAgents } from "@/lib/agents/client";
+import { mockAgentBySlug } from "@/lib/hermes-data";
 
 export function ComplianceClient() {
-  const { chain, agentBySlug } = useHermes();
+  const { data } = useAudit();
+  const { data: agentData } = useAgents();
+  const chain = data?.entries ?? [];
+  const agents = agentData?.agents ?? [];
+
+  function agentName(slug: string | null) {
+    if (!slug) return "Unknown agent";
+    return agents.find((agent) => agent.slug === slug)?.name ?? mockAgentBySlug(slug)?.name ?? slug;
+  }
+
+  function csvCell(value: unknown) {
+    const raw = String(value ?? "");
+    const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+    return `"${safe.replaceAll('"', '""')}"`;
+  }
 
   function exportCsv() {
     const header = [
@@ -24,15 +40,17 @@ export function ComplianceClient() {
     ].join(",");
     const rows = chain.map((block) =>
       [
-        block.index,
+        block.id,
         block.timestamp,
-        agentBySlug(block.agentSlug)?.id ?? block.agentSlug,
+        block.agentDid ?? block.agentSlug ?? "",
         block.action,
         block.payloadHash,
-        block.prevHash,
+        block.previousHash,
         block.signatureValid,
         block.decision,
-      ].join(","),
+      ]
+        .map(csvCell)
+        .join(","),
     );
     const blob = new Blob([[header, ...rows].join("\n")], {
       type: "text/csv;charset=utf-8",
@@ -111,20 +129,18 @@ export function ComplianceClient() {
             </thead>
             <tbody className="divide-y divide-border">
               {chain.map((block) => (
-                <tr key={block.index} className="hover:bg-surface-raised/40">
-                  <td className="px-4 py-3 font-mono text-xs">#{block.index}</td>
+                <tr key={block.id} className="hover:bg-surface-raised/40">
+                  <td className="px-4 py-3 font-mono text-xs">#{block.id}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {block.timestamp.replace("T", " ").slice(0, 19)}
                   </td>
-                  <td className="px-4 py-3 text-xs">
-                    {agentBySlug(block.agentSlug)?.name ?? block.agentSlug}
-                  </td>
+                  <td className="px-4 py-3 text-xs">{agentName(block.agentSlug)}</td>
                   <td className="px-4 py-3 font-mono text-xs text-cyan-accent">{block.action}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {block.payloadHash.slice(0, 16)}…
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {block.prevHash.slice(0, 16)}…
+                    {block.previousHash.slice(0, 16)}…
                   </td>
                   <td className="px-4 py-3">
                     <BadgeCheck className="size-4 text-emerald-accent" />

@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("dashboard mock interactions", () => {
-  it("issues a passport and creates its agent wallet", async () => {
+  it("issues a passport without creating a wallet", async () => {
     const user = userEvent.setup();
     renderWithHermes(
       <>
@@ -39,13 +39,14 @@ describe("dashboard mock interactions", () => {
     await user.click(screen.getByRole("button", { name: "Issue new agent passport" }));
     await user.type(screen.getByLabelText("Agent name"), "Parity Agent");
     await user.type(screen.getByLabelText("Role"), "Support operations");
-    await user.clear(screen.getByLabelText("Owner organisation"));
-    await user.type(screen.getByLabelText("Owner organisation"), "Parity Holdings");
     await user.click(screen.getByRole("button", { name: "Mint passport" }));
 
-    expect(screen.getAllByText("Parity Agent")).toHaveLength(2);
+    expect(await screen.findByText("Parity Agent")).toBeInTheDocument();
     expect(screen.getByText("Support operations")).toBeInTheDocument();
-    expect(screen.getAllByText(/did:web:hermespass\.asia:agent:parity-agent/i)).toHaveLength(2);
+    expect(
+      screen.getByText(/did:web:hermespass\.asia:agent:parity-agent-test/i),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Freeze card" })).toHaveLength(4);
   });
 
   it("pauses and resumes the live gateway stream", async () => {

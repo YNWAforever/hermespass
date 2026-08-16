@@ -14,6 +14,7 @@ playwright-report/
 test-results/
 blob-report/
 .worktrees/
+.codebase-memory/
 *.tsbuildinfo
 dist
 dist-ssr

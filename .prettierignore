@@ -4,3 +4,4 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 docs/superpowers/plans/
+.codebase-memory/

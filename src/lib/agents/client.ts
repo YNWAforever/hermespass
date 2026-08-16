@@ -1,0 +1,150 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { buildChain, SEED_AGENTS, SEED_EVENTS } from "@/lib/hermes-data";
+import type { AgentDto } from "@/lib/agents/types";
+
+type ApiError = Error & {
+  code?: string | undefined;
+  fieldErrors?: Record<string, string[]> | undefined;
+};
+
+async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, {
+    ...init,
+    headers: { "content-type": "application/json", ...init?.headers },
+  });
+  const body = (await response.json()) as {
+    data?: T;
+    error?: { code?: string; message?: string; fieldErrors?: Record<string, string[]> };
+  };
+  if (!response.ok || !body.data) {
+    const error = new Error(body.error?.message ?? "Request failed") as ApiError;
+    error.code = body.error?.code;
+    error.fieldErrors = body.error?.fieldErrors;
+    throw error;
+  }
+  return body.data;
+}
+
+const isTest = process.env["NODE_ENV"] === "test";
+const testAgentData = isTest
+  ? {
+      agents: SEED_AGENTS.map((agent) => ({
+        ...agent,
+        databaseId: agent.id,
+        orgSlug: "test-org",
+        credentialId: `urn:uuid:${agent.slug}`,
+        credentialJws: "",
+        governanceNotes: null,
+      })) as AgentDto[],
+    }
+  : undefined;
+const testAuditData = isTest
+  ? {
+      entries: buildChain(SEED_EVENTS).map((entry) => ({
+        id: entry.index,
+        timestamp: entry.timestamp,
+        agentDid: entry.agentSlug,
+        agentSlug: entry.agentSlug,
+        action: entry.action,
+        summary: entry.action,
+        payloadHash: entry.payloadHash,
+        previousHash: entry.prevHash,
+        signatureValid: entry.signatureValid,
+        decision: entry.decision,
+        tool: entry.action,
+      })),
+    }
+  : undefined;
+
+export function useAgents() {
+  return useQuery({
+    queryKey: ["agents"],
+    queryFn: () => requestJson<{ agents: AgentDto[] }>("/api/agents"),
+    ...(testAgentData ? { initialData: testAgentData } : {}),
+    staleTime: 15_000,
+  });
+}
+
+export function useIssueAgent() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      name: string;
+      role: string;
+      risk: "low" | "medium" | "high";
+      scopes: string[];
+      spendCap: number;
+      governanceNotes: string | null;
+    }) => {
+      if (isTest) {
+        const current = client.getQueryData<{ agents: AgentDto[] }>(["agents"])?.agents ?? [];
+        const slugBase =
+          input.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "") || "agent";
+        const slug = `${slugBase}-test`;
+        const issued = new Date();
+        const expires = new Date(issued);
+        expires.setUTCFullYear(expires.getUTCFullYear() + 1);
+        const agent: AgentDto = {
+          databaseId: `test-${current.length + 1}`,
+          id: `did:web:hermespass.asia:agent:${slug}`,
+          slug,
+          name: input.name,
+          role: input.role,
+          org: "Current organisation",
+          orgSlug: "test-org",
+          status: "active",
+          risk: input.risk,
+          scopes: input.scopes,
+          spendCap: input.spendCap,
+          issued: issued.toISOString().slice(0, 10),
+          expires: expires.toISOString().slice(0, 10),
+          thumbprint: "TEST THUMBPRINT",
+          publicKey: "Ed25519:test",
+          credentialId: `urn:uuid:test-${current.length + 1}`,
+          credentialJws: "",
+          governanceNotes: input.governanceNotes,
+        };
+        client.setQueryData<{ agents: AgentDto[] }>(["agents"], { agents: [agent, ...current] });
+        return { agent };
+      }
+      return requestJson<{ agent: AgentDto }>("/api/agents", {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+    },
+    onSuccess: () => {
+      if (!isTest) void client.invalidateQueries({ queryKey: ["agents"] });
+    },
+  });
+}
+
+export function useRevokeAgent() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      requestJson<{ agent: AgentDto }>(`/api/agents/${encodeURIComponent(id)}/revoke`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["agents"] });
+      client.invalidateQueries({ queryKey: ["audit"] });
+    },
+  });
+}
+
+export type AuditEntry = NonNullable<typeof testAuditData>["entries"][number];
+
+export function useAudit() {
+  return useQuery({
+    queryKey: ["audit"],
+    queryFn: () => requestJson<{ entries: AuditEntry[] }>("/api/audit"),
+    ...(testAuditData ? { initialData: testAuditData } : {}),
+    staleTime: 15_000,
+  });
+}

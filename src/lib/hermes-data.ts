@@ -357,3 +357,7 @@ export function credentialFor(a: Agent) {
 export function formatHKD(n: number) {
   return `HK$ ${n.toLocaleString("en-HK", { minimumFractionDigits: 0 })}`;
 }
+
+export function mockAgentBySlug(slug: string): Agent | undefined {
+  return SEED_AGENTS.find((agent) => agent.slug === slug);
+}

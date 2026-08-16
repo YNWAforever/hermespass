@@ -16,15 +16,19 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatHKD, type Decision, type GatewayEvent } from "@/lib/hermes-data";
+import { formatHKD, mockAgentBySlug, type Decision, type GatewayEvent } from "@/lib/hermes-data";
 import { useHermes } from "@/lib/hermes-store";
+import { useAgents } from "@/lib/agents/client";
+import type { AgentDto } from "@/lib/agents/types";
 
 function timeOf(timestamp: string) {
   return new Date(timestamp).toISOString().slice(11, 19) + "Z";
 }
 
 export function ApprovalsClient() {
-  const { events, streaming, setStreaming, agentBySlug } = useHermes();
+  const { events, streaming, setStreaming } = useHermes();
+  const { data } = useAgents();
+  const agents = data?.agents ?? [];
   const [filter, setFilter] = useState<"all" | Decision>("all");
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -85,7 +89,7 @@ export function ApprovalsClient() {
       <div className="panel divide-y divide-border overflow-hidden">
         <AnimatePresence initial={false}>
           {visible.map((event) => {
-            const agent = agentBySlug(event.agentSlug);
+            const agent = findAgent(agents, event.agentSlug);
 
             return (
               <motion.button
@@ -130,8 +134,9 @@ export function ApprovalsClient() {
 }
 
 function ReviewDrawer({ event, onClose }: { event: GatewayEvent | null; onClose: () => void }) {
-  const { agentBySlug, resolveEvent, escalateEvent } = useHermes();
-  const agent = event ? agentBySlug(event.agentSlug) : undefined;
+  const { resolveEvent, escalateEvent } = useHermes();
+  const { data } = useAgents();
+  const agent = event ? findAgent(data?.agents ?? [], event.agentSlug) : undefined;
 
   return (
     <Sheet open={!!event} onOpenChange={(open) => !open && onClose()}>
@@ -244,4 +249,8 @@ function ReviewDrawer({ event, onClose }: { event: GatewayEvent | null; onClose:
       </SheetContent>
     </Sheet>
   );
+}
+
+function findAgent(agents: AgentDto[], slug: string) {
+  return agents.find((agent) => agent.slug === slug) ?? mockAgentBySlug(slug);
 }
