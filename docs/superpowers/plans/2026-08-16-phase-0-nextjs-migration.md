@@ -245,7 +245,7 @@ bun run build
   - `check`: Bun 1.3.14 frozen install, formatting, Next ESLint, TypeScript, Vitest, production build.
   - `parity`: check out the PR branch and `legacy/vite` separately, install both, install Chromium, run both servers, execute route/interaction/visual tests, and upload Playwright artifacts on failure.
 
-- [ ] After explicit publication approval, push `legacy/vite` and `codex/phase-0-nextjs-migration`, then open a draft PR referencing ADR-0001 and the tracked plan.
+- [x] After explicit publication approval, push `legacy/vite` and `codex/phase-0-nextjs-migration`, then open a draft PR referencing ADR-0001 and the tracked plan.
 - [ ] Require green CI and a Vercel preview. If no Vercel project is connected, stop for approval before creating or linking one.
 - [ ] Run all 44 route checks and the interaction suite against the preview URL.
 - [ ] Present source, CI, browser, visual-parity, and preview evidence, then pause.
