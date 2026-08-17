@@ -16,7 +16,7 @@ vi.mock("@/lib/auth/authorization", () => ({
   withActorTransaction: vi.fn(),
 }));
 
-import { verifyPublicAgent } from "@/lib/agents/service";
+import { verifyPublicAgent, verifyPublicAgentByDid } from "@/lib/agents/service";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -26,6 +26,86 @@ afterEach(() => {
 });
 
 describe("public passport verification", () => {
+  it("verifies a valid credential when public SQL returns timestamp strings", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"));
+    process.env["HERMES_ISSUER_ORIGIN"] = "https://hermespass.asia";
+
+    const pair = await generateEd25519KeyPair();
+    const issuedAt = new Date("2026-01-01T00:00:00.000Z");
+    const expiresAt = new Date("2027-01-01T00:00:00.000Z");
+    const credentialId = "urn:uuid:22222222-2222-4222-8222-222222222222";
+    const did = "did:web:hermespass.asia:agent:test-agent";
+    const credential = buildPassportCredential({
+      id: credentialId,
+      issuer: "did:web:hermespass.asia",
+      issuedAt,
+      expiresAt,
+      subject: {
+        id: did,
+        name: "Test Agent",
+        role: "Support",
+        ownerOrganization: "Hermes Holdings APAC",
+        ownerOrganizationSlug: "hermes-holdings-apac",
+        riskTier: "low",
+        capabilities: ["catalog.read"],
+        spendCapHKD: 12.34,
+      },
+    });
+    const credentialJws = await signPassportCredential(
+      credential,
+      pair.privateJwk,
+      "did:web:hermespass.asia#issuer-1",
+    );
+
+    database.execute
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            slug: "test-agent",
+            did,
+            name: "Test Agent",
+            role: "Support",
+            organization_name: "Hermes Holdings APAC",
+            organization_slug: "hermes-holdings-apac",
+            risk: "low",
+            scopes: ["catalog.read"],
+            spend_cap_cents: "1234",
+            status: "active",
+            credential_id: credentialId,
+            credential_jws: credentialJws,
+            issued_at: issuedAt.toISOString(),
+            expires_at: expiresAt.toISOString(),
+            public_jwk: null,
+            thumbprint: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            did: "did:web:hermespass.asia",
+            key_fragment: "issuer-1",
+            public_jwk: pair.publicJwk,
+            thumbprint: "issuer-thumbprint",
+          },
+        ],
+      });
+
+    await expect(verifyPublicAgentByDid(did)).resolves.toMatchObject({
+      valid: true,
+      status: "active",
+      did,
+      checks: {
+        signature: true,
+        issuer: true,
+        expiry: true,
+        storedStatus: "active",
+      },
+    });
+  });
+
   it("reports a validly signed credential as expired at its exclusive boundary", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2027-01-01T00:00:00.000Z"));

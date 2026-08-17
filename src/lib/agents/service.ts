@@ -392,8 +392,8 @@ export async function verifyPublicAgent(slug: string) {
         risk: agent.risk,
         scopes: agent.scopes,
         spendCapCents: Number(agent.spend_cap_cents),
-        issuedAt: agent.issued_at,
-        expiresAt: agent.expires_at,
+        issuedAt: new Date(agent.issued_at),
+        expiresAt: new Date(agent.expires_at),
       },
     );
     const now = Date.now();
@@ -446,8 +446,8 @@ export async function verifyPublicAgentByDid(did: string) {
         risk: agent.risk,
         scopes: agent.scopes,
         spendCapCents: Number(agent.spend_cap_cents),
-        issuedAt: agent.issued_at,
-        expiresAt: agent.expires_at,
+        issuedAt: new Date(agent.issued_at),
+        expiresAt: new Date(agent.expires_at),
       },
     );
     const expired = new Date(verified.credential.validUntil).getTime() <= Date.now();
