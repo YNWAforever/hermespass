@@ -49,7 +49,7 @@ test.describe("44-route contract", () => {
       expect(legacy.status(), `legacy ${path}`).toBe(200);
       const next = await request.get(`${NEXT_BASE_URL}${path}`, { maxRedirects: 0 });
       expect(next.status(), `Next ${path}`).toBe(307);
-      expect(next.headers()["location"]).toBe(`/login?next=${path}`);
+      expect(next.headers()["location"]).toBe(`/login?next=${encodeURIComponent(path)}`);
     });
   }
 
