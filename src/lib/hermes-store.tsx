@@ -9,43 +9,23 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  DID_PREFIX,
-  SEED_AGENTS,
   SEED_EVENTS,
   SEED_WALLETS,
-  buildChain,
-  publicKeyFor,
-  thumbprintFor,
-  type Agent,
-  type ChainBlock,
   type Decision,
   type GatewayEvent,
-  type RiskTier,
   type Wallet,
 } from "./hermes-data";
 
-type NewPassport = {
-  name: string;
-  role: string;
-  org: string;
-  risk: RiskTier;
-  scopes: string[];
-  spendCap: number;
-};
-
 type HermesContextValue = {
-  agents: Agent[];
   events: GatewayEvent[];
   wallets: Wallet[];
-  chain: ChainBlock[];
   streaming: boolean;
   setStreaming: (v: boolean) => void;
-  issuePassport: (input: NewPassport) => Agent;
   resolveEvent: (id: string, decision: Exclude<Decision, "hold">) => void;
   escalateEvent: (id: string) => void;
   updateWallet: (agentSlug: string, patch: Partial<Wallet>) => void;
-  agentBySlug: (slug: string) => Agent | undefined;
 };
 
 const HermesContext = createContext<HermesContextValue | null>(null);
@@ -98,7 +78,7 @@ const STREAM_TEMPLATES: Array<Omit<GatewayEvent, "id" | "timestamp">> = [
 ];
 
 export function HermesProvider({ children }: { children: ReactNode }) {
-  const [agents, setAgents] = useState<Agent[]>(SEED_AGENTS);
+  const [queryClient] = useState(() => new QueryClient());
   const [events, setEvents] = useState<GatewayEvent[]>(SEED_EVENTS);
   const [wallets, setWallets] = useState<Wallet[]>(SEED_WALLETS);
   const [streaming, setStreaming] = useState(true);
@@ -123,53 +103,6 @@ export function HermesProvider({ children }: { children: ReactNode }) {
     }, 7000);
     return () => clearInterval(timer);
   }, [streaming]);
-
-  const issuePassport = useCallback((input: NewPassport) => {
-    const slug =
-      input.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "") || "agent";
-    const today = new Date().toISOString().slice(0, 10);
-    const expires = `${Number(today.slice(0, 4)) + 1}${today.slice(4)}`;
-    const created: Agent = {
-      ...input,
-      slug,
-      id: DID_PREFIX + slug,
-      status: "active",
-      issued: today,
-      expires,
-      thumbprint: thumbprintFor(slug),
-      publicKey: publicKeyFor(slug),
-    };
-    setAgents((prev) => [created, ...prev]);
-    setWallets((prev) => [
-      {
-        agentSlug: slug,
-        pan: String(4000 + ((slug.length * 137) % 999)),
-        network: "Visa Commercial",
-        perTx: Math.max(1, Math.round(input.spendCap / 10)),
-        daily: Math.max(1, input.spendCap),
-        monthly: Math.max(1, input.spendCap * 12),
-        spentThisMonth: 0,
-        mcc: ["SaaS & Software"],
-      },
-      ...prev,
-    ]);
-    setEvents((prev) => [
-      {
-        id: `evt-issue-${slug}`,
-        agentSlug: slug,
-        timestamp: new Date().toISOString(),
-        tool: "passport.issue",
-        summary: `Passport issued — risk tier ${input.risk}, ${input.scopes.length} scopes`,
-        decision: "allow",
-        reason: "Ed25519 key pair generated, private key sealed in vault.",
-      },
-      ...prev,
-    ]);
-    return created;
-  }, []);
 
   const resolveEvent = useCallback((id: string, decision: Exclude<Decision, "hold">) => {
     setEvents((prev) =>
@@ -199,22 +132,22 @@ export function HermesProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<HermesContextValue>(
     () => ({
-      agents,
       events,
       wallets,
-      chain: buildChain(events),
       streaming,
       setStreaming,
-      issuePassport,
       resolveEvent,
       escalateEvent,
       updateWallet,
-      agentBySlug: (slug) => agents.find((a) => a.slug === slug),
     }),
-    [agents, events, wallets, streaming, issuePassport, resolveEvent, escalateEvent, updateWallet],
+    [events, wallets, streaming, resolveEvent, escalateEvent, updateWallet],
   );
 
-  return <HermesContext.Provider value={value}>{children}</HermesContext.Provider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <HermesContext.Provider value={value}>{children}</HermesContext.Provider>
+    </QueryClientProvider>
+  );
 }
 
 export function useHermes() {

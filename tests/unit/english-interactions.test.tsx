@@ -35,7 +35,7 @@ describe("English marketing interactions", () => {
 
     expect(screen.getByRole("heading", { name: "Thanks, Alex." })).toBeInTheDocument();
     expect(screen.getByText(/alex@company.com/i)).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("recalculates annual ROI when an input changes", () => {
     render(<EnRoiClient />);

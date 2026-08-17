@@ -16,9 +16,12 @@ import { DecisionBadge } from "@/components/hermes/badges";
 import { PageHeader } from "@/components/hermes/page-header";
 import { DECISION_TREND, formatHKD } from "@/lib/hermes-data";
 import { useHermes } from "@/lib/hermes-store";
+import { useAgents } from "@/lib/agents/client";
 
 export function DashboardOverviewClient() {
-  const { agents, events, wallets } = useHermes();
+  const { events, wallets } = useHermes();
+  const { data } = useAgents();
+  const agents = data?.agents ?? [];
   const holds = events.filter((event) => event.decision === "hold").length;
   const denied = events.filter((event) => event.decision === "deny");
   const blockedSpend = denied.reduce((sum, event) => sum + (event.amount ?? 0), 0);

@@ -8,11 +8,15 @@ import { PageHeader } from "@/components/hermes/page-header";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { MCC_CATEGORIES, formatHKD, type Wallet } from "@/lib/hermes-data";
+import { MCC_CATEGORIES, formatHKD, mockAgentBySlug, type Wallet } from "@/lib/hermes-data";
 import { useHermes } from "@/lib/hermes-store";
+import { useAgents } from "@/lib/agents/client";
+import type { AgentDto } from "@/lib/agents/types";
 
 export function WalletsClient() {
-  const { wallets, agentBySlug } = useHermes();
+  const { wallets } = useHermes();
+  const { data } = useAgents();
+  const agents = data?.agents ?? [];
 
   return (
     <div className="space-y-6">
@@ -27,7 +31,7 @@ export function WalletsClient() {
           <WalletRow
             key={wallet.agentSlug}
             wallet={wallet}
-            agentName={agentBySlug(wallet.agentSlug)?.name}
+            agent={findAgent(agents, wallet.agentSlug)}
           />
         ))}
       </div>
@@ -35,9 +39,15 @@ export function WalletsClient() {
   );
 }
 
-function WalletRow({ wallet, agentName }: { wallet: Wallet; agentName?: string | undefined }) {
-  const { updateWallet, agentBySlug } = useHermes();
-  const agent = agentBySlug(wallet.agentSlug);
+function WalletRow({
+  wallet,
+  agent,
+}: {
+  wallet: Wallet;
+  agent?: AgentDto | ReturnType<typeof mockAgentBySlug>;
+}) {
+  const { updateWallet } = useHermes();
+  const agentName = agent?.name;
   const utilisation = Math.min(
     100,
     Math.round((wallet.spentThisMonth / Math.max(1, wallet.monthly)) * 100),
@@ -162,6 +172,10 @@ function WalletRow({ wallet, agentName }: { wallet: Wallet; agentName?: string |
       </div>
     </section>
   );
+}
+
+function findAgent(agents: AgentDto[], slug: string) {
+  return agents.find((agent) => agent.slug === slug) ?? mockAgentBySlug(slug);
 }
 
 function CapSlider({

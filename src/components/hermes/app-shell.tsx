@@ -14,6 +14,7 @@ import {
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useHermes } from "@/lib/hermes-store";
+import type { Actor } from "@/lib/auth/authorization";
 
 const NAV = [
   { to: "/dashboard", label: "Overview", icon: Gauge },
@@ -23,7 +24,16 @@ const NAV = [
   { to: "/dashboard/compliance", label: "Audit & Compliance", icon: FileCheck2 },
 ] as const;
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, actor }: { children: ReactNode; actor?: Actor }) {
+  const resolvedActor = actor ?? {
+    userId: "local-preview",
+    email: "admin@hermespass.asia",
+    name: "HermesPass admin",
+    organizationId: "local",
+    organizationName: "Hermes Holdings APAC",
+    organizationSlug: "hermes-holdings-apac",
+    role: "owner" as const,
+  };
   const pathname = usePathname();
   const { events, streaming } = useHermes();
   const holds = events.filter((e) => e.decision === "hold").length;
@@ -83,8 +93,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
               Organisation
             </p>
-            <p className="mt-1 text-sm font-medium">Hermes Holdings APAC</p>
-            <p className="font-mono text-[10px] text-muted-foreground">did:web:hermespass.asia</p>
+            <p className="mt-1 text-sm font-medium">{resolvedActor.organizationName}</p>
+            <p className="truncate font-mono text-[10px] text-muted-foreground">
+              {resolvedActor.email ?? resolvedActor.userId}
+            </p>
           </div>
         </div>
       </aside>
@@ -115,6 +127,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             {holds} pending review
           </Link>
+          <form action="/api/auth/sign-out" method="post">
+            <button
+              type="submit"
+              className="rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              Sign out
+            </button>
+          </form>
         </header>
 
         <main className="min-w-0 flex-1 px-5 py-6 lg:px-8">{children}</main>

@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("dashboard mock interactions", () => {
-  it("issues a passport and creates its agent wallet", async () => {
+  it("issues a passport without creating a wallet", async () => {
     const user = userEvent.setup();
     renderWithHermes(
       <>
@@ -39,13 +39,14 @@ describe("dashboard mock interactions", () => {
     await user.click(screen.getByRole("button", { name: "Issue new agent passport" }));
     await user.type(screen.getByLabelText("Agent name"), "Parity Agent");
     await user.type(screen.getByLabelText("Role"), "Support operations");
-    await user.clear(screen.getByLabelText("Owner organisation"));
-    await user.type(screen.getByLabelText("Owner organisation"), "Parity Holdings");
     await user.click(screen.getByRole("button", { name: "Mint passport" }));
 
-    expect(screen.getAllByText("Parity Agent")).toHaveLength(2);
+    expect(await screen.findByText("Parity Agent")).toBeInTheDocument();
     expect(screen.getByText("Support operations")).toBeInTheDocument();
-    expect(screen.getAllByText(/did:web:hermespass\.asia:agent:parity-agent/i)).toHaveLength(2);
+    expect(
+      screen.getByText(/did:web:hermespass\.asia:agent:parity-agent-test/i),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Freeze card" })).toHaveLength(4);
   });
 
   it("pauses and resumes the live gateway stream", async () => {
@@ -94,26 +95,17 @@ describe("dashboard mock interactions", () => {
     expect(sliders[1]).toHaveAttribute("aria-valuenow", "0");
   });
 
-  it("prints a report and downloads the compliance CSV", async () => {
+  it("prints a report and links to the server compliance CSV", async () => {
     const user = userEvent.setup();
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
-    const createObjectURL = vi.fn(() => "blob:hermespass-audit");
-    const revokeObjectURL = vi.fn();
-    Object.defineProperties(URL, {
-      createObjectURL: { configurable: true, value: createObjectURL },
-      revokeObjectURL: { configurable: true, value: revokeObjectURL },
-    });
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
     renderWithHermes(<ComplianceClient />);
 
     await user.click(screen.getByRole("button", { name: "PDF report" }));
     expect(print).toHaveBeenCalledOnce();
 
-    await user.click(screen.getByRole("button", { name: "1-click regulatory export" }));
-    expect(createObjectURL).toHaveBeenCalledOnce();
-    expect(click).toHaveBeenCalledOnce();
-    expect(revokeObjectURL).toHaveBeenCalledWith("blob:hermespass-audit");
+    expect(screen.getByRole("link", { name: "1-click regulatory export" })).toHaveAttribute(
+      "href",
+      "/api/audit/export.csv",
+    );
   });
 });

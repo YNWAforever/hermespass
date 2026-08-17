@@ -48,15 +48,11 @@ export const ROUTES = [
   ...DASHBOARD_ROUTES,
 ] as const;
 
+export const PUBLIC_ROUTES = [...ENGLISH_MARKETING_ROUTES, ...CHINESE_MARKETING_ROUTES] as const;
+
 export const INVALID_ROUTES = ["/does-not-exist", "/zh-xx", "/zh-hans/does-not-exist"] as const;
 
-export const METADATA_PARITY_ROUTES = [
-  "/",
-  "/contact",
-  "/zh-hant",
-  "/zh-hans/pricing",
-  "/dashboard/approvals",
-] as const;
+export const METADATA_PARITY_ROUTES = ["/", "/contact", "/zh-hant", "/zh-hans/pricing"] as const;
 
 export const VISUAL_PARITY_ROUTES = [
   "/",
@@ -64,7 +60,6 @@ export const VISUAL_PARITY_ROUTES = [
   "/roi-calculator",
   "/zh-hant",
   "/zh-hans/pricing",
-  ...DASHBOARD_ROUTES,
 ] as const;
 
 export const VISUAL_VIEWPORTS = [

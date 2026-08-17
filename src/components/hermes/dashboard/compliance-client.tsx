@@ -1,52 +1,41 @@
 "use client";
 
 import { BadgeCheck, Download, FileText, Link2, ShieldCheck } from "lucide-react";
-import { toast } from "sonner";
 
 import { DecisionBadge } from "@/components/hermes/badges";
 import { PageHeader } from "@/components/hermes/page-header";
 import { Button } from "@/components/ui/button";
-import { useHermes } from "@/lib/hermes-store";
+import { useAgents, useAudit, useAuditVerification } from "@/lib/agents/client";
+import { mockAgentBySlug } from "@/lib/hermes-data";
 
 export function ComplianceClient() {
-  const { chain, agentBySlug } = useHermes();
+  const { data } = useAudit();
+  const verification = useAuditVerification();
+  const { data: agentData } = useAgents();
+  const chain = data?.entries ?? [];
+  const agents = agentData?.agents ?? [];
 
-  function exportCsv() {
-    const header = [
-      "block_index",
-      "timestamp",
-      "agent_did",
-      "action",
-      "payload_hash",
-      "previous_hash",
-      "signature_valid",
-      "decision",
-    ].join(",");
-    const rows = chain.map((block) =>
-      [
-        block.index,
-        block.timestamp,
-        agentBySlug(block.agentSlug)?.id ?? block.agentSlug,
-        block.action,
-        block.payloadHash,
-        block.prevHash,
-        block.signatureValid,
-        block.decision,
-      ].join(","),
-    );
-    const blob = new Blob([[header, ...rows].join("\n")], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `hermespass-audit-${new Date().toISOString().slice(0, 10)}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    toast.success("Regulatory export generated", {
-      description: `${chain.length} hash-chained blocks written to CSV.`,
-    });
+  function agentName(slug: string | null) {
+    if (!slug) return "Unknown agent";
+    return agents.find((agent) => agent.slug === slug)?.name ?? mockAgentBySlug(slug)?.name ?? slug;
   }
+
+  const verificationTitle = verification.isLoading
+    ? "Verifying chain integrity…"
+    : verification.isError
+      ? "Unable to verify chain integrity"
+      : verification.data?.valid
+        ? "Chain integrity verified"
+        : "Chain integrity broken";
+  const verificationDetail = verification.isLoading
+    ? "Checking the authoritative database chain"
+    : verification.isError
+      ? "Verification endpoint unavailable"
+      : verification.data?.valid
+        ? `${verification.data.checked} ${verification.data.checked === 1 ? "block" : "blocks"} · 0 breaks`
+        : verification.data?.firstInvalid == null
+          ? "Verification failed before a block could be identified"
+          : `First invalid block: #${verification.data.firstInvalid}`;
 
   return (
     <div className="space-y-6">
@@ -60,9 +49,11 @@ export function ComplianceClient() {
               <FileText className="size-4" />
               PDF report
             </Button>
-            <Button className="shadow-glow-emerald" onClick={exportCsv}>
-              <Download className="size-4" />
-              1-click regulatory export
+            <Button asChild className="shadow-glow-emerald">
+              <a href="/api/audit/export.csv">
+                <Download className="size-4" />
+                1-click regulatory export
+              </a>
             </Button>
           </>
         }
@@ -84,12 +75,12 @@ export function ComplianceClient() {
           </div>
         </div>
         <div className="panel flex items-center gap-3 p-4">
-          <Link2 className="size-5 shrink-0 text-emerald-accent" />
+          <Link2
+            className={`size-5 shrink-0 ${verification.data?.valid ? "text-emerald-accent" : "text-muted-foreground"}`}
+          />
           <div>
-            <p className="text-sm font-medium">Chain integrity verified</p>
-            <p className="font-mono text-xs text-muted-foreground">
-              {chain.length} blocks · 0 breaks
-            </p>
+            <p className="text-sm font-medium">{verificationTitle}</p>
+            <p className="font-mono text-xs text-muted-foreground">{verificationDetail}</p>
           </div>
         </div>
       </div>
@@ -105,29 +96,23 @@ export function ComplianceClient() {
                 <th className="px-4 py-3">Action</th>
                 <th className="px-4 py-3">Payload hash</th>
                 <th className="px-4 py-3">Previous hash</th>
-                <th className="px-4 py-3">Sig</th>
                 <th className="px-4 py-3">Decision</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {chain.map((block) => (
-                <tr key={block.index} className="hover:bg-surface-raised/40">
-                  <td className="px-4 py-3 font-mono text-xs">#{block.index}</td>
+                <tr key={block.id} className="hover:bg-surface-raised/40">
+                  <td className="px-4 py-3 font-mono text-xs">#{block.id}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {block.timestamp.replace("T", " ").slice(0, 19)}
                   </td>
-                  <td className="px-4 py-3 text-xs">
-                    {agentBySlug(block.agentSlug)?.name ?? block.agentSlug}
-                  </td>
+                  <td className="px-4 py-3 text-xs">{agentName(block.agentSlug)}</td>
                   <td className="px-4 py-3 font-mono text-xs text-cyan-accent">{block.action}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {block.payloadHash.slice(0, 16)}…
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {block.prevHash.slice(0, 16)}…
-                  </td>
-                  <td className="px-4 py-3">
-                    <BadgeCheck className="size-4 text-emerald-accent" />
+                    {block.previousHash.slice(0, 16)}…
                   </td>
                   <td className="px-4 py-3">
                     <DecisionBadge decision={block.decision} />
