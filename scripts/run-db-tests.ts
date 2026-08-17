@@ -9,7 +9,16 @@ if (!databaseUrl) {
 validateDbTestConfiguration(databaseUrl);
 
 const processHandle = Bun.spawn(
-  ["bun", "x", "vitest", "run", "tests/integration/postgres.integration.test.ts"],
+  [
+    "bun",
+    "x",
+    "vitest",
+    "run",
+    "tests/integration/postgres.integration.test.ts",
+    "tests/integration/postgres.policy-gateway.integration.test.ts",
+    "--maxWorkers=1",
+    "--fileParallelism=false",
+  ],
   {
     env: {
       ...process.env,

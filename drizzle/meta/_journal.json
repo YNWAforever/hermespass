@@ -15,6 +15,13 @@
       "when": 1786907326009,
       "tag": "0001_phase1_security_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786994449485,
+      "tag": "0002_policy_gateway",
+      "breakpoints": true
     }
   ]
 }

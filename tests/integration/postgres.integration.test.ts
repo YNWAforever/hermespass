@@ -30,6 +30,7 @@ type Fixtures = {
 const migrationPaths = [
   join(process.cwd(), "drizzle", "0000_low_human_robot.sql"),
   join(process.cwd(), "drizzle", "0001_phase1_security_hardening.sql"),
+  join(process.cwd(), "drizzle", "0002_policy_gateway.sql"),
 ];
 
 function suffix(): string {
