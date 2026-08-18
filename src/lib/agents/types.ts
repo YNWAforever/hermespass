@@ -14,8 +14,10 @@ export type AgentDto = {
   spendCap: number;
   issued: string;
   expires: string;
-  thumbprint: string;
-  publicKey: string;
+  keyStatus: "active" | "enrollment_required";
+  keyCustody: "legacy_encrypted" | "external" | null;
+  thumbprint: string | null;
+  publicKey: string | null;
   credentialId: string;
   credentialJws: string;
   governanceNotes: string | null;
@@ -29,6 +31,7 @@ export function agentDto(
     organizationSlug: string;
     publicJwk: PublicJwk | null;
     thumbprint: string | null;
+    custody: "legacy_encrypted" | "external" | null;
   },
 ): AgentDto {
   return {
@@ -45,8 +48,10 @@ export function agentDto(
     spendCap: row.spendCapCents / 100,
     issued: row.issuedAt.toISOString().slice(0, 10),
     expires: row.expiresAt.toISOString().slice(0, 10),
-    thumbprint: row.thumbprint ?? "",
-    publicKey: row.publicJwk?.x ? `Ed25519:${row.publicJwk.x}` : "Ed25519:unavailable",
+    keyStatus: row.publicJwk && row.thumbprint ? "active" : "enrollment_required",
+    keyCustody: row.custody,
+    thumbprint: row.thumbprint,
+    publicKey: row.publicJwk?.x ? `Ed25519:${row.publicJwk.x}` : null,
     credentialId: row.credentialId,
     credentialJws: row.credentialJws,
     governanceNotes: row.governanceNotes,

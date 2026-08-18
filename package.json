@@ -18,12 +18,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "db:check": "drizzle-kit check",
     "test:db": "bun scripts/run-db-tests.ts",
     "test:db:smoke": "bun scripts/run-db-smoke.ts",
     "test:e2e": "playwright test",
     "test:routes": "playwright test tests/e2e/routes.spec.ts",
     "test:parity": "playwright test tests/e2e/visual-parity.spec.ts",
-    "db:bootstrap-issuer": "bun scripts/bootstrap-issuer.ts"
+    "db:bootstrap-issuer": "bun scripts/bootstrap-issuer.ts",
+    "gateway:decide": "bun scripts/gateway-decide.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -57,6 +59,7 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-query": "^5.101.1",
+    "canonicalize": "3.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

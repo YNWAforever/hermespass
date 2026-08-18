@@ -15,6 +15,34 @@
       "when": 1786907326009,
       "tag": "0001_phase1_security_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786994449485,
+      "tag": "0002_policy_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787023582826,
+      "tag": "0003_gateway_auth_boundary",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787032800000,
+      "tag": "0004_approval_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787047200000,
+      "tag": "0005_approval_revalidation",
+      "breakpoints": true
     }
   ]
 }

@@ -47,8 +47,11 @@ jobs:
       - name: Type-check
         run: bun run typecheck
 
-      - name: Run unit tests
+      - name: Run Vitest suite
         run: bun run test
+
+      - name: Validate Drizzle migrations
+        run: bun run db:check
 
       - name: Build production application
         run: bun run build
@@ -166,9 +169,9 @@ jobs:
           retention-days: 14
 
   neon-smoke:
-    name: Neon schema smoke (approval-gated)
+    name: Neon Phase 2 ephemeral smoke (approval-gated)
     if: ${{ vars.HERMESPASS_NEON_SMOKE == 'true' }}
-    needs: check
+    needs: [postgres-integration, parity]
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

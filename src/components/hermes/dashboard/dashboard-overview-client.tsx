@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowUpRight, Ban, Fingerprint, ShieldAlert, Zap } from "lucide-react";
 import Link from "next/link";
 import {
   Area,
@@ -10,21 +11,21 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowUpRight, Ban, Fingerprint, ShieldAlert, Zap } from "lucide-react";
 
 import { DecisionBadge } from "@/components/hermes/badges";
 import { PageHeader } from "@/components/hermes/page-header";
-import { DECISION_TREND, formatHKD } from "@/lib/hermes-data";
-import { useHermes } from "@/lib/hermes-store";
 import { useAgents } from "@/lib/agents/client";
+import { useGatewayActivity } from "@/lib/gateway/client";
+import { formatHKD } from "@/lib/hermes-data";
+import { useHermes } from "@/lib/hermes-store";
 
 export function DashboardOverviewClient() {
-  const { events, wallets } = useHermes();
-  const { data } = useAgents();
-  const agents = data?.agents ?? [];
-  const holds = events.filter((event) => event.decision === "hold").length;
-  const denied = events.filter((event) => event.decision === "deny");
-  const blockedSpend = denied.reduce((sum, event) => sum + (event.amount ?? 0), 0);
+  const { wallets, streaming } = useHermes();
+  const gateway = useGatewayActivity(streaming);
+  const agentsQuery = useAgents();
+  const agents = agentsQuery.data?.agents ?? [];
+  const activity = gateway.data?.activity ?? [];
+  const aggregates = gateway.data?.aggregates;
   const monthSpend = wallets.reduce((sum, wallet) => sum + wallet.spentThisMonth, 0);
 
   return (
@@ -45,24 +46,38 @@ export function DashboardOverviewClient() {
         <Kpi
           icon={Zap}
           label="Actions gated today"
-          value={events.length.toLocaleString()}
+          value={(aggregates?.actionsToday ?? 0).toLocaleString()}
           detail="signature-verified tool calls"
         />
         <Kpi
           icon={ShieldAlert}
           label="Holds pending review"
-          value={String(holds)}
+          value={String(aggregates?.pendingHolds ?? 0)}
           detail="awaiting human mandate"
           tone="warn"
         />
         <Kpi
           icon={Ban}
           label="Blocked spend"
-          value={formatHKD(blockedSpend)}
-          detail={`${denied.length} denied payment mandates`}
+          value={formatHKD((aggregates?.blockedSpendCents ?? 0) / 100)}
+          detail={`${aggregates?.deniedCount ?? 0} denied payment mandates`}
           tone="danger"
         />
       </div>
+
+      {gateway.isLoading || agentsQuery.isLoading ? (
+        <p className="panel p-8 text-sm text-muted-foreground">Loading gateway overview…</p>
+      ) : null}
+      {gateway.error ? (
+        <p role="alert" className="panel p-8 text-sm text-risk-high">
+          Unable to load gateway overview: {gateway.error.message}
+        </p>
+      ) : null}
+      {agentsQuery.error ? (
+        <p role="alert" className="panel p-8 text-sm text-risk-high">
+          Unable to load passport totals: {agentsQuery.error.message}
+        </p>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
         <section className="panel p-5">
@@ -79,7 +94,7 @@ export function DashboardOverviewClient() {
           </div>
           <div className="mt-5 h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={DECISION_TREND}>
+              <AreaChart data={aggregates?.trend ?? []}>
                 <defs>
                   {[
                     ["allow", "var(--color-chart-1)"],
@@ -155,7 +170,7 @@ export function DashboardOverviewClient() {
             </Link>
           </div>
           <ul className="mt-4 divide-y divide-border">
-            {events.slice(0, 6).map((event) => (
+            {activity.slice(0, 6).map((event) => (
               <li key={event.id} className="py-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-[11px] text-cyan-accent">{event.tool}</span>
@@ -164,6 +179,9 @@ export function DashboardOverviewClient() {
                 <p className="mt-1 text-xs text-muted-foreground">{event.summary}</p>
               </li>
             ))}
+            {!gateway.isLoading && !gateway.error && activity.length === 0 ? (
+              <li className="py-8 text-sm text-muted-foreground">No gateway activity yet.</li>
+            ) : null}
           </ul>
         </section>
       </div>

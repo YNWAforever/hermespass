@@ -12,9 +12,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import { useHermes } from "@/lib/hermes-store";
 import type { Actor } from "@/lib/auth/authorization";
+import { useGatewayActivity } from "@/lib/gateway/client";
+import { useHermes } from "@/lib/hermes-store";
+import { cn } from "@/lib/utils";
 
 const NAV = [
   { to: "/dashboard", label: "Overview", icon: Gauge },
@@ -35,8 +36,9 @@ export function AppShell({ children, actor }: { children: ReactNode; actor?: Act
     role: "owner" as const,
   };
   const pathname = usePathname();
-  const { events, streaming } = useHermes();
-  const holds = events.filter((e) => e.decision === "hold").length;
+  const { streaming } = useHermes();
+  const activity = useGatewayActivity(streaming);
+  const holds = activity.data?.aggregates.pendingHolds ?? 0;
 
   return (
     <div className="flex min-h-screen bg-background">

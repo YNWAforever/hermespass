@@ -25,12 +25,26 @@ smokeTest("PostgreSQL identity schema smoke", () => {
   });
 
   it("retains forced RLS on every tenant table", async () => {
+    const tenantTables = [
+      "organizations",
+      "org_members",
+      "issuer_keys",
+      "agents",
+      "agent_keys",
+      "agent_audit_logs",
+      "agent_policies",
+      "gateway_requests",
+      "pending_approvals",
+      "agent_key_enrollments",
+      "telegram_links",
+      "telegram_link_tokens",
+    ];
     const result = await pool.query(
       "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY($1::text[]) ORDER BY relname",
-      [["organizations", "org_members", "issuer_keys", "agents", "agent_keys", "agent_audit_logs"]],
+      [tenantTables],
     );
 
-    expect(result.rows).toHaveLength(6);
+    expect(result.rows).toHaveLength(tenantTables.length);
     expect(result.rows.every((row) => row.relrowsecurity && row.relforcerowsecurity)).toBe(true);
   });
 });

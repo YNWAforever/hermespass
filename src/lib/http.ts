@@ -65,11 +65,65 @@ export function errorResponse(request: Request, error: unknown): Response {
     return jsonError(request, "INVALID_JSON", "The request body must contain valid JSON.", 400);
 
   const message = error instanceof Error ? error.message : "";
+  if (message === "AGENT_AUTH_FAILED")
+    return jsonError(request, message, "Agent authentication failed.", 401);
+  if (message === "NONCE_CONFLICT")
+    return jsonError(request, message, "This nonce is bound to different signed bytes.", 409);
+  if (message === "GATEWAY_UNAVAILABLE")
+    return jsonError(request, message, "The gateway is temporarily unavailable.", 503);
+  if (message === "APPROVAL_UNAVAILABLE")
+    return jsonError(request, message, "The approval is no longer available.", 409);
+  if (message === "APPROVAL_RESOLUTION_INVALID")
+    return jsonError(request, message, "The approval resolution is invalid.", 400);
+  if (message === "APPROVALS_UNAVAILABLE")
+    return jsonError(request, message, "Approvals are temporarily unavailable.", 503);
+  if (message === "TELEGRAM_LINK_INVALID")
+    return jsonError(request, message, "The Telegram link proof is invalid or unavailable.", 400);
+  if (message === "TELEGRAM_LINK_UNAVAILABLE")
+    return jsonError(request, message, "Telegram linking is temporarily unavailable.", 503);
+
   if (message === "AGENT_NOT_FOUND")
     return Response.json(
       { error: { code: message, message: "Agent not found.", requestId: id } },
       { status: 404 },
     );
+  if (message === "AGENT_NOT_ENROLLABLE")
+    return Response.json(
+      {
+        error: {
+          code: message,
+          message: "This agent cannot accept a key enrollment.",
+          requestId: id,
+        },
+      },
+      { status: 409 },
+    );
+  if (message === "AGENT_ENROLLMENT_INVALID")
+    return Response.json(
+      {
+        error: {
+          code: message,
+          message: "The enrollment proof is invalid or unavailable.",
+          requestId: id,
+        },
+      },
+      { status: 400 },
+    );
+  if (message === "POLICY_REVIEWER_INELIGIBLE")
+    return Response.json(
+      {
+        error: {
+          code: message,
+          message: "The assigned reviewer must be a current owner or administrator.",
+          requestId: id,
+        },
+      },
+      { status: 400 },
+    );
+  if (message === "ENROLLMENT_UNAVAILABLE")
+    return jsonError(request, message, "Agent key enrollment is temporarily unavailable.", 503);
+  if (message === "POLICY_UPDATE_FAILED")
+    return jsonError(request, message, "The agent policy could not be updated.", 500);
   if (message === "ISSUER_NOT_CONFIGURED")
     return Response.json(
       {
