@@ -221,6 +221,8 @@ async function insertGatewayRequest(
   keyId: string,
   nonce: string,
   decision: "allow" | "deny" | "hold" = "hold",
+  amountCents: number | string = 12000,
+  currency = "HKD",
 ): Promise<string> {
   const result = await client.query<{ id: string }>(
     `INSERT INTO public.gateway_requests (
@@ -233,13 +235,13 @@ async function insertGatewayRequest(
       $1, $2, $3, $4,
       decode(repeat('ab', 32), 'hex'), decode(repeat('cd', 32), 'hex'),
       decode(repeat('ef', 32), 'hex'), '1', 'checkout.external',
-      'Safe checkout summary', 'Integration justification', 12000, 'HKD', '5411', now(),
+      'Safe checkout summary', 'Integration justification', $6, $7, '5411', now(),
       $5::public.gateway_decision, $5::public.gateway_decision,
       'INTEGRATION_DECISION', 'Integration decision', 1,
       now(), now(), CASE WHEN $5::text = 'allow' THEN now() ELSE NULL END,
       CASE WHEN $5::text = 'allow' THEN now() + interval '5 minutes' ELSE NULL END
     ) RETURNING id`,
-    [organizationId, agentId, keyId, nonce, decision],
+    [organizationId, agentId, keyId, nonce, decision, amountCents, currency],
   );
   return result.rows[0]!.id;
 }
@@ -422,53 +424,67 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
       "telegram_link_tokens",
       "telegram_links",
     ];
-    const [tables, role, routines, ddlPrivilege, runtimeOwnedTables] = await Promise.all([
-      pool.query(
-        `SELECT relname, relrowsecurity, relforcerowsecurity
+    const [tables, role, routines, ddlPrivilege, runtimeOwnedTables, roleMemberships] =
+      await Promise.all([
+        pool.query(
+          `SELECT relname, relrowsecurity, relforcerowsecurity
          FROM pg_class WHERE relname = ANY($1::text[]) ORDER BY relname`,
-        [tenantTables],
-      ),
-      pool.query(
-        `SELECT rolcanlogin, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolinherit
+          [tenantTables],
+        ),
+        pool.query(
+          `SELECT rolcanlogin, rolsuper, rolreplication, rolbypassrls,
+                rolcreatedb, rolcreaterole, rolinherit
          FROM pg_roles WHERE rolname = 'hermes_app'`,
-      ),
-      pool.query<{ name: string; settings: string[] | null }>(
-        `SELECT procedure.proname AS name, procedure.proconfig AS settings
+        ),
+        pool.query<{ name: string; settings: string[] | null }>(
+          `SELECT procedure.proname AS name, procedure.proconfig AS settings
          FROM pg_proc procedure
          JOIN pg_namespace namespace ON namespace.oid = procedure.pronamespace
          WHERE namespace.nspname = 'public'
            AND procedure.proname = ANY($1::text[])
          ORDER BY procedure.proname`,
-        [
           [
-            "hermes_agent_key_enrollment_guard",
-            "hermes_agent_policy_guard",
-            "hermes_current_agent_id",
-            "hermes_current_agent_key_id",
-            "hermes_current_agent_organization_id",
-            "hermes_gateway_request_guard",
-            "hermes_has_org_role",
-            "hermes_lock_approval_resolution",
-            "hermes_lock_gateway_decision",
-            "hermes_lock_policy_version",
-            "hermes_next_policy_version",
-            "hermes_pending_approval_guard",
-            "hermes_set_verified_agent_claim",
-            "hermes_telegram_link_guard",
-            "hermes_telegram_link_token_guard",
+            [
+              "hermes_agent_key_enrollment_guard",
+              "hermes_agent_policy_guard",
+              "hermes_consume_agent_key_enrollment",
+              "hermes_consume_telegram_link_token",
+              "hermes_create_agent_key_enrollment",
+              "hermes_create_telegram_link_token",
+              "hermes_current_agent_id",
+              "hermes_current_agent_key_id",
+              "hermes_current_agent_organization_id",
+              "hermes_gateway_request_guard",
+              "hermes_has_org_role",
+              "hermes_lock_approval_resolution",
+              "hermes_lock_gateway_decision",
+              "hermes_lock_policy_version",
+              "hermes_next_policy_version",
+              "hermes_pending_approval_guard",
+              "hermes_record_approval_delivery",
+              "hermes_resolve_approval",
+              "hermes_set_verified_agent_claim",
+              "hermes_telegram_link_guard",
+              "hermes_telegram_link_token_guard",
+            ],
           ],
-        ],
-      ),
-      pool.query("SELECT has_schema_privilege('hermes_app', 'public', 'CREATE') AS can_create"),
-      pool.query(
-        `SELECT relation.relname
+        ),
+        pool.query("SELECT has_schema_privilege('hermes_app', 'public', 'CREATE') AS can_create"),
+        pool.query(
+          `SELECT relation.relname
          FROM pg_class relation
          JOIN pg_roles owner_role ON owner_role.oid = relation.relowner
          WHERE relation.relnamespace = 'public'::regnamespace
            AND relation.relkind IN ('r', 'p')
            AND owner_role.rolname = 'hermes_app'`,
-      ),
-    ]);
+        ),
+        pool.query(
+          `SELECT count(*)::int AS count
+         FROM pg_catalog.pg_auth_members membership
+         JOIN pg_catalog.pg_roles member ON member.oid = membership.member
+         WHERE member.rolname = 'hermes_app'`,
+        ),
+      ]);
 
     expect(tables.rows).toHaveLength(tenantTables.length);
     expect(tables.rows.every((row) => row.relrowsecurity && row.relforcerowsecurity)).toBe(true);
@@ -479,10 +495,11 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
         rolcreatedb: false,
         rolcreaterole: false,
         rolinherit: false,
+        rolreplication: false,
         rolsuper: false,
       },
     ]);
-    expect(routines.rows).toHaveLength(15);
+    expect(routines.rows).toHaveLength(21);
     expect(
       routines.rows.every(({ settings }) =>
         settings?.includes("search_path=pg_catalog, public, pg_temp"),
@@ -490,6 +507,7 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
     ).toBe(true);
     expect(ddlPrivilege.rows).toEqual([{ can_create: false }]);
     expect(runtimeOwnedTables.rows).toEqual([]);
+    expect(roleMemberships.rows).toEqual([{ count: 0 }]);
   });
 
   it("enforces external-key custody and retains one active historical key per agent", async () => {
@@ -758,104 +776,536 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
     );
   });
 
-  it("stores only hashed, expiring, single-use enrollment and Telegram tokens", async () => {
-    const enrollmentHash = Buffer.alloc(32, 7);
-    const telegramHash = Buffer.alloc(32, 9);
+  it("rejects revoked keys, revoked agents, and expired passports at the verified-agent boundary", async () => {
+    const revokedKeyAgentId = await insertAgent(
+      pool,
+      fixtures.organizationId,
+      `revoked-key-agent-${suffix()}`,
+    );
+    const revokedKeyId = await insertExternalKey(
+      pool,
+      revokedKeyAgentId,
+      fixtures.organizationId,
+      `revoked-key-${suffix()}`,
+    );
+    await pool.query(
+      `UPDATE public.agent_keys
+       SET status = 'revoked', revoked_at = clock_timestamp()
+       WHERE id = $1`,
+      [revokedKeyId],
+    );
 
-    const enrollment = await withAppUser(pool, fixtures.adminId, (client) =>
-      client.query<{ id: string }>(
-        `INSERT INTO public.agent_key_enrollments (
-          organization_id, agent_id, token_hash, expires_at, created_by_user_id
-        ) VALUES ($1, $2, $3, now() + interval '15 minutes', $4) RETURNING id`,
-        [fixtures.organizationId, fixtures.agentId, enrollmentHash, fixtures.adminId],
-      ),
+    const revokedAgentId = await insertAgent(
+      pool,
+      fixtures.organizationId,
+      `revoked-agent-${suffix()}`,
     );
+    const revokedAgentKeyId = await insertExternalKey(
+      pool,
+      revokedAgentId,
+      fixtures.organizationId,
+      `revoked-agent-key-${suffix()}`,
+    );
+    await pool.query(
+      `UPDATE public.agents
+       SET status = 'revoked', revoked_at = clock_timestamp(), revoked_by = $2
+       WHERE id = $1`,
+      [revokedAgentId, fixtures.ownerId],
+    );
+
+    const expiredAgentId = await insertAgent(
+      pool,
+      fixtures.organizationId,
+      `expired-agent-${suffix()}`,
+    );
+    const expiredAgentKeyId = await insertExternalKey(
+      pool,
+      expiredAgentId,
+      fixtures.organizationId,
+      `expired-agent-key-${suffix()}`,
+    );
+    await pool.query(
+      "UPDATE public.agents SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1",
+      [expiredAgentId],
+    );
+
+    for (const [agentId, keyId] of [
+      [revokedKeyAgentId, revokedKeyId],
+      [revokedAgentId, revokedAgentKeyId],
+      [expiredAgentId, expiredAgentKeyId],
+    ]) {
+      await expectSqlState(
+        () =>
+          withVerifiedAgent(pool, agentId!, fixtures.organizationId, keyId!, async () => undefined),
+        "P0002",
+      );
+    }
+  });
+
+  it("keeps every cents value within the JavaScript safe-integer range and allows spend only in HKD", async () => {
+    const unsafeCents = "9007199254740992";
+    const policyCount = await pool.query<{ count: number }>(
+      "SELECT count(*)::int AS count FROM public.agent_policies WHERE agent_id = $1 AND version = 1",
+      [fixtures.agentId],
+    );
+    if (policyCount.rows[0]!.count === 0) {
+      await insertPolicy(
+        pool,
+        fixtures.organizationId,
+        fixtures.agentId,
+        fixtures.assignedReviewerId,
+      );
+    }
+
+    await expectSqlState(
+      () =>
+        pool.query("UPDATE public.agents SET spend_cap_cents = $2 WHERE id = $1", [
+          fixtures.agentId,
+          unsafeCents,
+        ]),
+      "23514",
+    );
+
     await expectSqlState(
       () =>
         withAppUser(pool, fixtures.adminId, (client) =>
           client.query(
-            `INSERT INTO public.agent_key_enrollments (
-              organization_id, agent_id, token_hash, expires_at, created_by_user_id
-            ) VALUES ($1, $2, $3, now() + interval '15 minutes', $4)`,
-            [fixtures.organizationId, fixtures.agentId, enrollmentHash, fixtures.adminId],
-          ),
-        ),
-      "23505",
-    );
-    await expectSqlState(
-      () =>
-        withAppUser(pool, fixtures.adminId, (client) =>
-          client.query(
-            `INSERT INTO public.agent_key_enrollments (
-              organization_id, agent_id, token_hash, expires_at, created_by_user_id
-            ) VALUES ($1, $2, decode('01', 'hex'), now() - interval '1 second', $3)`,
-            [fixtures.organizationId, fixtures.agentId, fixtures.adminId],
+            `INSERT INTO public.agent_policies (
+              organization_id, agent_id, version, currency,
+              per_transaction_limit_cents, daily_limit_cents, monthly_limit_cents,
+              approval_threshold_cents, mcc_allowlist, mcc_required,
+              assigned_reviewer_user_id, is_active, superseded_at, created_by_user_id
+            ) VALUES (
+              $1, $2, 999, 'HKD', 1, 2, $3, 1,
+              ARRAY[]::text[], false, $4, false, clock_timestamp(), $5
+            )`,
+            [
+              fixtures.organizationId,
+              fixtures.agentId,
+              unsafeCents,
+              fixtures.assignedReviewerId,
+              fixtures.adminId,
+            ],
           ),
         ),
       "23514",
     );
 
-    const token = await withAppUser(pool, fixtures.assignedReviewerId, (client) =>
-      client.query<{ id: string }>(
-        `INSERT INTO public.telegram_link_tokens (
-          organization_id, user_id, token_hash, expires_at, created_by_user_id
-        ) VALUES ($1, $2, $3, now() + interval '10 minutes', $2) RETURNING id`,
-        [fixtures.organizationId, fixtures.assignedReviewerId, telegramHash],
+    await expectSqlState(
+      () =>
+        insertGatewayRequest(
+          pool,
+          fixtures.organizationId,
+          fixtures.agentId,
+          fixtures.externalKeyId,
+          `unsafe-cents-${suffix()}`,
+          "deny",
+          unsafeCents,
+        ),
+      "23514",
+    );
+
+    await expectSqlState(
+      () =>
+        insertGatewayRequest(
+          pool,
+          fixtures.organizationId,
+          fixtures.agentId,
+          fixtures.externalKeyId,
+          `allow-usd-${suffix()}`,
+          "allow",
+          12000,
+          "USD",
+        ),
+      "23514",
+    );
+    await expect(
+      insertGatewayRequest(
+        pool,
+        fixtures.organizationId,
+        fixtures.agentId,
+        fixtures.externalKeyId,
+        `deny-usd-${suffix()}`,
+        "deny",
+        12000,
+        "USD",
+      ),
+    ).resolves.toEqual(expect.any(String));
+
+    await expectSqlState(
+      () =>
+        pool.query(
+          `INSERT INTO public.agent_audit_logs (
+            organization_id, agent_id, actor_type, actor_id, action, summary, amount_cents
+          ) VALUES ($1, $2, 'user', $3, 'gateway.unsafe-cents', 'Unsafe cents', $4)`,
+          [fixtures.organizationId, fixtures.agentId, fixtures.ownerId, unsafeCents],
+        ),
+      "23514",
+    );
+  });
+
+  it("creates and atomically consumes agent-key enrollments through the runtime boundary", async () => {
+    const enrollmentAgentId = await insertAgent(
+      pool,
+      fixtures.organizationId,
+      `enrollment-agent-${suffix()}`,
+    );
+    const previousKeyId = await insertExternalKey(
+      pool,
+      enrollmentAgentId,
+      fixtures.organizationId,
+      `enrollment-old-key-${suffix()}`,
+    );
+    const enrollmentHash = Buffer.alloc(32, 17);
+    const created = await withAppUser(pool, fixtures.adminId, (client) =>
+      client.query<{ enrollment_id: string; expires_at: Date }>(
+        "SELECT * FROM public.hermes_create_agent_key_enrollment($1, $2, $3)",
+        [fixtures.organizationId, enrollmentAgentId, enrollmentHash],
       ),
     );
-    const linked = await pool.query<{ id: string }>(
+    expect(created.rows).toHaveLength(1);
+    expect(created.rows[0]!.expires_at.getTime()).toBeGreaterThan(Date.now());
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.adminId, (client) =>
+          client.query("SELECT * FROM public.hermes_create_agent_key_enrollment($1, $2, $3)", [
+            fixtures.organizationId,
+            enrollmentAgentId,
+            enrollmentHash,
+          ]),
+        ),
+      "23505",
+    );
+
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.viewerId, (client) =>
+          client.query("SELECT * FROM public.hermes_create_agent_key_enrollment($1, $2, $3)", [
+            fixtures.organizationId,
+            enrollmentAgentId,
+            Buffer.alloc(32, 18),
+          ]),
+        ),
+      "42501",
+    );
+
+    const newKeyFragment = `enrollment-new-key-${suffix()}`;
+    const consumed = await withAppTransaction(
+      pool,
+      async () => undefined,
+      (client) =>
+        client.query<{ agent_id: string; organization_id: string; key_id: string }>(
+          `SELECT * FROM public.hermes_consume_agent_key_enrollment(
+            $1, $2, $3::jsonb, $4
+          )`,
+          [
+            enrollmentHash,
+            newKeyFragment,
+            JSON.stringify({ kty: "OKP", crv: "Ed25519", x: newKeyFragment }),
+            `thumbprint-${newKeyFragment}`,
+          ],
+        ),
+    );
+    expect(consumed.rows).toEqual([
+      {
+        agent_id: enrollmentAgentId,
+        organization_id: fixtures.organizationId,
+        key_id: expect.any(String),
+      },
+    ]);
+
+    const enrollmentState = await pool.query(
+      `SELECT enrollment.consumed_key_id, enrollment.consumed_at IS NOT NULL AS consumed,
+              previous.status::text AS previous_status,
+              activated.status::text AS activated_status,
+              activated.custody::text AS custody,
+              activated.ciphertext IS NULL AND activated.iv IS NULL
+                AND activated.wrapped_dek IS NULL AND activated.kek_version IS NULL
+                AND activated.encryption_algorithm IS NULL AS private_material_absent
+       FROM public.agent_key_enrollments enrollment
+       JOIN public.agent_keys previous ON previous.id = $2
+       JOIN public.agent_keys activated ON activated.id = enrollment.consumed_key_id
+       WHERE enrollment.id = $1`,
+      [created.rows[0]!.enrollment_id, previousKeyId],
+    );
+    expect(enrollmentState.rows).toEqual([
+      {
+        activated_status: "active",
+        consumed: true,
+        consumed_key_id: consumed.rows[0]!.key_id,
+        custody: "external",
+        previous_status: "revoked",
+        private_material_absent: true,
+      },
+    ]);
+
+    await expectSqlState(
+      () =>
+        withAppTransaction(
+          pool,
+          async () => undefined,
+          (client) =>
+            client.query(
+              "SELECT * FROM public.hermes_consume_agent_key_enrollment($1, 'replay', '{}'::jsonb, 'replay')",
+              [enrollmentHash],
+            ),
+        ),
+      "P0002",
+    );
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.adminId, (client) =>
+          client.query("SELECT token_hash FROM public.agent_key_enrollments"),
+        ),
+      "42501",
+    );
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.adminId, (client) =>
+          client.query(
+            "UPDATE public.agent_key_enrollments SET consumed_at = clock_timestamp() WHERE id = $1",
+            [created.rows[0]!.enrollment_id],
+          ),
+        ),
+      "42501",
+    );
+
+    const expiredHash = Buffer.alloc(32, 19);
+    await pool.query(
+      `INSERT INTO public.agent_key_enrollments (
+        organization_id, agent_id, token_hash, expires_at, created_by_user_id, created_at
+      ) VALUES (
+        $1, $2, $3, clock_timestamp() - interval '1 minute', $4,
+        clock_timestamp() - interval '16 minutes'
+      )`,
+      [fixtures.organizationId, enrollmentAgentId, expiredHash, fixtures.adminId],
+    );
+    await expectSqlState(
+      () =>
+        withAppTransaction(
+          pool,
+          async () => undefined,
+          (client) =>
+            client.query(
+              "SELECT * FROM public.hermes_consume_agent_key_enrollment($1, 'expired', '{}'::jsonb, 'expired')",
+              [expiredHash],
+            ),
+        ),
+      "P0002",
+    );
+
+    const lockExpiryHash = Buffer.alloc(32, 20);
+    const lockExpiryToken = await pool.query<{ id: string }>(
+      `INSERT INTO public.agent_key_enrollments (
+        organization_id, agent_id, token_hash, expires_at, created_by_user_id, created_at
+      ) VALUES (
+        $1, $2, $3, clock_timestamp() + interval '200 milliseconds', $4,
+        clock_timestamp() - interval '14 minutes'
+      ) RETURNING id`,
+      [fixtures.organizationId, enrollmentAgentId, lockExpiryHash, fixtures.adminId],
+    );
+    const tokenLocker = await pool.connect();
+    try {
+      await tokenLocker.query("BEGIN");
+      await tokenLocker.query(
+        "SELECT id FROM public.agent_key_enrollments WHERE id = $1 FOR UPDATE",
+        [lockExpiryToken.rows[0]!.id],
+      );
+      const blockedConsumption = withAppTransaction(
+        pool,
+        async () => undefined,
+        (client) =>
+          client.query(
+            `SELECT * FROM public.hermes_consume_agent_key_enrollment(
+            $1, 'lock-expired', '{"kty":"OKP"}'::jsonb, 'lock-expired'
+          )`,
+            [lockExpiryHash],
+          ),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await tokenLocker.query("COMMIT");
+      await expect(blockedConsumption).rejects.toMatchObject({ code: "P0002" });
+    } finally {
+      await tokenLocker.query("ROLLBACK").catch(() => undefined);
+      tokenLocker.release();
+    }
+
+    const advisoryExpiryHash = Buffer.alloc(32, 21);
+    await pool.query(
+      `INSERT INTO public.agent_key_enrollments (
+        organization_id, agent_id, token_hash, expires_at, created_by_user_id, created_at
+      ) VALUES (
+        $1, $2, $3, clock_timestamp() + interval '200 milliseconds', $4,
+        clock_timestamp() - interval '14 minutes'
+      )`,
+      [fixtures.organizationId, enrollmentAgentId, advisoryExpiryHash, fixtures.adminId],
+    );
+    const agentLocker = await pool.connect();
+    try {
+      await agentLocker.query("BEGIN");
+      await agentLocker.query(
+        `SELECT pg_catalog.pg_advisory_xact_lock(
+          pg_catalog.hashtextextended('hermes.agent:' || $1::text, 0)
+        )`,
+        [enrollmentAgentId],
+      );
+      const advisoryBlockedConsumption = withAppTransaction(
+        pool,
+        async () => undefined,
+        (client) =>
+          client.query(
+            `SELECT * FROM public.hermes_consume_agent_key_enrollment(
+              $1, 'advisory-expired', '{"kty":"OKP"}'::jsonb, 'advisory-expired'
+            )`,
+            [advisoryExpiryHash],
+          ),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await agentLocker.query("COMMIT");
+      await expect(advisoryBlockedConsumption).rejects.toMatchObject({ code: "P0002" });
+    } finally {
+      await agentLocker.query("ROLLBACK").catch(() => undefined);
+      agentLocker.release();
+    }
+  });
+
+  it("creates and atomically consumes Telegram link tokens through the runtime boundary", async () => {
+    const historicalLink = await pool.query<{ id: string }>(
       `INSERT INTO public.telegram_links (
         organization_id, user_id, telegram_user_id, telegram_chat_id
       ) VALUES ($1, $2, $3, $4) RETURNING id`,
       [
         fixtures.organizationId,
-        fixtures.assignedReviewerId,
-        Number(`8${Date.now().toString().slice(-9)}`),
-        Number(`9${Date.now().toString().slice(-9)}`),
+        fixtures.unassignedAdminId,
+        Number(`7${Date.now().toString().slice(-9)}`),
+        Number(`6${Date.now().toString().slice(-9)}`),
       ],
     );
-    const viewerSecrets = await withAppUser(pool, fixtures.viewerId, async (client) => {
-      const enrollments = await client.query<{ count: number }>(
-        "SELECT count(*)::int AS count FROM public.agent_key_enrollments",
-      );
-      const links = await client.query<{ count: number }>(
-        "SELECT count(*)::int AS count FROM public.telegram_links",
-      );
-      const tokens = await client.query<{ count: number }>(
-        "SELECT count(*)::int AS count FROM public.telegram_link_tokens",
-      );
-      return {
-        enrollments: enrollments.rows[0]!.count,
-        links: links.rows[0]!.count,
-        tokens: tokens.rows[0]!.count,
-      };
-    });
-    expect(viewerSecrets).toEqual({ enrollments: 0, links: 0, tokens: 0 });
-    await pool.query(
-      `UPDATE public.agent_key_enrollments
-       SET consumed_at = now(), consumed_key_id = $2 WHERE id = $1`,
-      [enrollment.rows[0]!.id, fixtures.externalKeyId],
+    const tokenHash = Buffer.alloc(32, 27);
+    const created = await withAppUser(pool, fixtures.ownerId, (client) =>
+      client.query<{ expires_at: Date; link_token_id: string }>(
+        "SELECT * FROM public.hermes_create_telegram_link_token($1, $2, $3)",
+        [fixtures.organizationId, fixtures.unassignedAdminId, tokenHash],
+      ),
     );
-    await pool.query(
-      `UPDATE public.telegram_link_tokens
-       SET consumed_at = now(), consumed_link_id = $2 WHERE id = $1`,
-      [token.rows[0]!.id, linked.rows[0]!.id],
-    );
+    expect(created.rows).toHaveLength(1);
+    expect(created.rows[0]!.expires_at.getTime()).toBeGreaterThan(Date.now());
     await expectSqlState(
       () =>
-        pool.query("UPDATE public.agent_key_enrollments SET consumed_at = NULL WHERE id = $1", [
-          enrollment.rows[0]!.id,
-        ]),
-      "P0001",
-    );
-    await expectSqlState(
-      () =>
-        pool.query("UPDATE public.telegram_link_tokens SET consumed_at = NULL WHERE id = $1", [
-          token.rows[0]!.id,
-        ]),
-      "P0001",
+        withAppUser(pool, fixtures.ownerId, (client) =>
+          client.query("SELECT * FROM public.hermes_create_telegram_link_token($1, $2, $3)", [
+            fixtures.organizationId,
+            fixtures.unassignedAdminId,
+            tokenHash,
+          ]),
+        ),
+      "23505",
     );
 
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.viewerId, (client) =>
+          client.query("SELECT * FROM public.hermes_create_telegram_link_token($1, $2, $3)", [
+            fixtures.organizationId,
+            fixtures.viewerId,
+            Buffer.alloc(32, 28),
+          ]),
+        ),
+      "42501",
+    );
+
+    const telegramUserId = Number(`8${Date.now().toString().slice(-9)}`);
+    const telegramChatId = Number(`9${Date.now().toString().slice(-9)}`);
+    const consumed = await withAppTransaction(
+      pool,
+      async () => undefined,
+      (client) =>
+        client.query<{ link_id: string; organization_id: string; user_id: string }>(
+          "SELECT * FROM public.hermes_consume_telegram_link_token($1, $2, $3)",
+          [tokenHash, telegramUserId, telegramChatId],
+        ),
+    );
+    expect(consumed.rows).toEqual([
+      {
+        link_id: expect.any(String),
+        organization_id: fixtures.organizationId,
+        user_id: fixtures.unassignedAdminId,
+      },
+    ]);
+    expect(consumed.rows[0]!.link_id).not.toBe(historicalLink.rows[0]!.id);
+
+    const linkState = await pool.query(
+      `SELECT token.consumed_link_id, token.consumed_at IS NOT NULL AS consumed,
+              historical.is_active AS historical_active,
+              linked.is_active AS linked_active,
+              linked.telegram_user_id::text AS telegram_user_id,
+              linked.telegram_chat_id::text AS telegram_chat_id
+       FROM public.telegram_link_tokens token
+       JOIN public.telegram_links historical ON historical.id = $2
+       JOIN public.telegram_links linked ON linked.id = token.consumed_link_id
+       WHERE token.id = $1`,
+      [created.rows[0]!.link_token_id, historicalLink.rows[0]!.id],
+    );
+    expect(linkState.rows).toEqual([
+      {
+        consumed: true,
+        consumed_link_id: consumed.rows[0]!.link_id,
+        historical_active: false,
+        linked_active: true,
+        telegram_chat_id: String(telegramChatId),
+        telegram_user_id: String(telegramUserId),
+      },
+    ]);
+
+    await expectSqlState(
+      () =>
+        withAppTransaction(
+          pool,
+          async () => undefined,
+          (client) =>
+            client.query("SELECT * FROM public.hermes_consume_telegram_link_token($1, $2, $3)", [
+              tokenHash,
+              telegramUserId + 1,
+              telegramChatId + 1,
+            ]),
+        ),
+      "P0002",
+    );
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.ownerId, (client) =>
+          client.query("SELECT token_hash FROM public.telegram_link_tokens"),
+        ),
+      "42501",
+    );
+
+    const expiredHash = Buffer.alloc(32, 29);
+    await pool.query(
+      `INSERT INTO public.telegram_link_tokens (
+        organization_id, user_id, token_hash, expires_at, created_by_user_id, created_at
+      ) VALUES (
+        $1, $2, $3, clock_timestamp() - interval '1 minute', $4,
+        clock_timestamp() - interval '11 minutes'
+      )`,
+      [fixtures.organizationId, fixtures.unassignedAdminId, expiredHash, fixtures.ownerId],
+    );
+    await expectSqlState(
+      () =>
+        withAppTransaction(
+          pool,
+          async () => undefined,
+          (client) =>
+            client.query("SELECT * FROM public.hermes_consume_telegram_link_token($1, $2, $3)", [
+              expiredHash,
+              telegramUserId + 2,
+              telegramChatId + 2,
+            ]),
+        ),
+      "P0002",
+    );
+  });
+
+  it("stores token digests only and exposes no token-table privileges to the runtime role", async () => {
     const unsafeColumns = await pool.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
        WHERE table_schema = 'public'
@@ -863,35 +1313,55 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
          AND column_name ~* '(plain|raw)_?token'`,
     );
     expect(unsafeColumns.rows).toEqual([]);
+
+    const privileges = await pool.query<{
+      enrollment_insert: boolean;
+      enrollment_select: boolean;
+      enrollment_update: boolean;
+      link_token_insert: boolean;
+      link_token_select: boolean;
+      link_token_update: boolean;
+    }>(
+      `SELECT
+        has_table_privilege('hermes_app', 'public.agent_key_enrollments', 'INSERT') AS enrollment_insert,
+        has_table_privilege('hermes_app', 'public.agent_key_enrollments', 'SELECT') AS enrollment_select,
+        has_table_privilege('hermes_app', 'public.agent_key_enrollments', 'UPDATE') AS enrollment_update,
+        has_table_privilege('hermes_app', 'public.telegram_link_tokens', 'INSERT') AS link_token_insert,
+        has_table_privilege('hermes_app', 'public.telegram_link_tokens', 'SELECT') AS link_token_select,
+        has_table_privilege('hermes_app', 'public.telegram_link_tokens', 'UPDATE') AS link_token_update`,
+    );
+    expect(privileges.rows).toEqual([
+      {
+        enrollment_insert: false,
+        enrollment_select: false,
+        enrollment_update: false,
+        link_token_insert: false,
+        link_token_select: false,
+        link_token_update: false,
+      },
+    ]);
   });
 
-  it("allows only the assigned reviewer or an organization owner to resolve holds", async () => {
-    const deniedRequestId = await insertGatewayRequest(
-      pool,
-      fixtures.organizationId,
-      fixtures.agentId,
-      fixtures.externalKeyId,
-      `not-a-hold-${suffix()}`,
-      "deny",
+  it("resolves an approval and its gateway result atomically through the authenticated runtime boundary", async () => {
+    const policyCount = await pool.query<{ count: number }>(
+      "SELECT count(*)::int AS count FROM public.agent_policies WHERE agent_id = $1 AND version = 1",
+      [fixtures.agentId],
     );
-    await expectSqlState(
-      () =>
-        insertApproval(
-          pool,
-          fixtures.organizationId,
-          fixtures.agentId,
-          deniedRequestId,
-          fixtures.assignedReviewerId,
-        ),
-      "23514",
-    );
+    if (policyCount.rows[0]!.count === 0) {
+      await insertPolicy(
+        pool,
+        fixtures.organizationId,
+        fixtures.agentId,
+        fixtures.assignedReviewerId,
+      );
+    }
 
     const requestId = await insertGatewayRequest(
       pool,
       fixtures.organizationId,
       fixtures.agentId,
       fixtures.externalKeyId,
-      `approval-${suffix()}`,
+      `atomic-approval-${suffix()}`,
     );
     const approvalId = await insertApproval(
       pool,
@@ -901,45 +1371,74 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
       fixtures.assignedReviewerId,
     );
 
-    const unassigned = await withAppUser(pool, fixtures.unassignedAdminId, (client) =>
-      client.query(
-        `UPDATE public.pending_approvals SET
-          status = 'approved', resolution = 'allow', resolution_source = 'web',
-          resolved_by_user_id = $1, resolved_at = now()
-         WHERE id = $2`,
-        [fixtures.unassignedAdminId, approvalId],
-      ),
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.unassignedAdminId, (client) =>
+          client.query(
+            "SELECT * FROM public.hermes_resolve_approval($1, 'allow', 'web', 'Spoofed approval')",
+            [approvalId],
+          ),
+        ),
+      "42501",
     );
-    expect(unassigned.rowCount).toBe(0);
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.assignedReviewerId, (client) =>
+          client.query(
+            `UPDATE public.pending_approvals
+             SET status = 'approved', resolution = 'allow', resolution_source = 'web',
+               resolved_by_user_id = $2, resolved_at = clock_timestamp()
+             WHERE id = $1`,
+            [approvalId, fixtures.unassignedAdminId],
+          ),
+        ),
+      "42501",
+    );
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.assignedReviewerId, (client) =>
+          client.query(
+            "SELECT * FROM public.hermes_resolve_approval($1, 'deny', 'owner_override', 'Not an owner')",
+            [approvalId],
+          ),
+        ),
+      "42501",
+    );
 
-    const assigned = await withAppUser(pool, fixtures.assignedReviewerId, (client) =>
-      client.query(
-        `UPDATE public.pending_approvals SET
-          status = 'approved', resolution = 'allow', resolution_source = 'web',
-          resolved_by_user_id = $1, resolved_at = now()
-         WHERE id = $2 AND status = 'pending'`,
-        [fixtures.assignedReviewerId, approvalId],
-      ),
+    const expiredRequestId = await insertGatewayRequest(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      fixtures.externalKeyId,
+      `expired-approval-${suffix()}`,
     );
-    expect(assigned.rowCount).toBe(1);
-    const assignedGateway = await withAppUser(pool, fixtures.assignedReviewerId, (client) =>
-      client.query(
-        `UPDATE public.gateway_requests SET
-          current_decision = 'allow', reason_code = 'REVIEWER_APPROVED',
-          reason = 'Assigned reviewer approved', current_result_updated_at = now(),
-          authorized_at = now(), authorization_expires_at = now() + interval '5 minutes'
-         WHERE id = $1 AND current_decision = 'hold'`,
-        [requestId],
-      ),
+    const expiredApproval = await pool.query<{ id: string }>(
+      `INSERT INTO public.pending_approvals (
+        organization_id, agent_id, gateway_request_id, assigned_reviewer_user_id,
+        status, expires_at, telegram_delivery_state, created_at
+      ) VALUES (
+        $1, $2, $3, $4, 'pending', clock_timestamp() - interval '1 second',
+        'not_requested', clock_timestamp() - interval '3 hours'
+      ) RETURNING id`,
+      [fixtures.organizationId, fixtures.agentId, expiredRequestId, fixtures.assignedReviewerId],
     );
-    expect(assignedGateway.rowCount).toBe(1);
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.assignedReviewerId, (client) =>
+          client.query(
+            "SELECT * FROM public.hermes_resolve_approval($1, 'allow', 'web', 'Too late')",
+            [expiredApproval.rows[0]!.id],
+          ),
+        ),
+      "P0001",
+    );
 
     const demotedRequestId = await insertGatewayRequest(
       pool,
       fixtures.organizationId,
       fixtures.agentId,
       fixtures.externalKeyId,
-      `demoted-reviewer-${suffix()}`,
+      `atomic-demoted-${suffix()}`,
     );
     const demotedApprovalId = await insertApproval(
       pool,
@@ -953,16 +1452,16 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
       [fixtures.organizationId, fixtures.assignedReviewerId],
     );
     try {
-      const demoted = await withAppUser(pool, fixtures.assignedReviewerId, (client) =>
-        client.query(
-          `UPDATE public.pending_approvals SET
-            status = 'approved', resolution = 'allow', resolution_source = 'web',
-            resolved_by_user_id = $1, resolved_at = now()
-           WHERE id = $2 AND status = 'pending'`,
-          [fixtures.assignedReviewerId, demotedApprovalId],
-        ),
+      await expectSqlState(
+        () =>
+          withAppUser(pool, fixtures.assignedReviewerId, (client) =>
+            client.query(
+              "SELECT * FROM public.hermes_resolve_approval($1, 'allow', 'web', 'Demoted')",
+              [demotedApprovalId],
+            ),
+          ),
+        "42501",
       );
-      expect(demoted.rowCount).toBe(0);
     } finally {
       await pool.query(
         "UPDATE public.org_members SET role = 'admin' WHERE organization_id = $1 AND user_id = $2",
@@ -970,40 +1469,364 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
       );
     }
 
-    const ownerRequestId = await insertGatewayRequest(
+    const resolved = await withAppUser(pool, fixtures.assignedReviewerId, (client) =>
+      client.query(
+        "SELECT * FROM public.hermes_resolve_approval($1, 'allow', 'web', 'Assigned reviewer approved')",
+        [approvalId],
+      ),
+    );
+    expect(resolved.rows).toEqual([
+      {
+        approval_id: approvalId,
+        approval_status: "approved",
+        current_decision: "allow",
+        gateway_request_id: requestId,
+      },
+    ]);
+    const resolvedState = await pool.query(
+      `SELECT approval.resolved_by_user_id, approval.status::text,
+              request.current_decision::text, request.authorized_at IS NOT NULL AS authorized
+       FROM public.pending_approvals approval
+       JOIN public.gateway_requests request ON request.id = approval.gateway_request_id
+       WHERE approval.id = $1`,
+      [approvalId],
+    );
+    expect(resolvedState.rows).toEqual([
+      {
+        authorized: true,
+        current_decision: "allow",
+        resolved_by_user_id: fixtures.assignedReviewerId,
+        status: "approved",
+      },
+    ]);
+
+    const rollbackRequestId = await insertGatewayRequest(
       pool,
       fixtures.organizationId,
       fixtures.agentId,
       fixtures.externalKeyId,
-      `owner-approval-${suffix()}`,
+      `rollback-approval-${suffix()}`,
     );
-    const ownerApprovalId = await insertApproval(
+    const rollbackApprovalId = await insertApproval(
       pool,
       fixtures.organizationId,
       fixtures.agentId,
-      ownerRequestId,
+      rollbackRequestId,
       fixtures.assignedReviewerId,
     );
-    const owner = await withAppUser(pool, fixtures.ownerId, (client) =>
-      client.query(
-        `UPDATE public.pending_approvals SET
-          status = 'denied', resolution = 'deny', resolution_source = 'owner_override',
-          resolved_by_user_id = $1, resolved_at = now()
-         WHERE id = $2 AND status = 'pending'`,
-        [fixtures.ownerId, ownerApprovalId],
-      ),
+    const rollbackClient = await pool.connect();
+    try {
+      await rollbackClient.query("SET ROLE hermes_app");
+      await rollbackClient.query("BEGIN");
+      await rollbackClient.query("SELECT set_config('hermes.user_id', $1, true)", [
+        fixtures.assignedReviewerId,
+      ]);
+      await rollbackClient.query(
+        "SELECT * FROM public.hermes_resolve_approval($1, 'deny', 'web', 'Rollback proof')",
+        [rollbackApprovalId],
+      );
+      await rollbackClient.query("ROLLBACK");
+    } finally {
+      await rollbackClient.query("ROLLBACK").catch(() => undefined);
+      await rollbackClient.query("RESET ROLE").catch(() => undefined);
+      rollbackClient.release();
+    }
+    const rollbackState = await pool.query(
+      `SELECT approval.status::text, request.current_decision::text
+       FROM public.pending_approvals approval
+       JOIN public.gateway_requests request ON request.id = approval.gateway_request_id
+       WHERE approval.id = $1`,
+      [rollbackApprovalId],
     );
-    expect(owner.rowCount).toBe(1);
-    const ownerGateway = await withAppUser(pool, fixtures.ownerId, (client) =>
-      client.query(
-        `UPDATE public.gateway_requests SET
-          current_decision = 'deny', reason_code = 'OWNER_DENIED',
-          reason = 'Organization owner denied', current_result_updated_at = now()
-         WHERE id = $1 AND current_decision = 'hold'`,
-        [ownerRequestId],
-      ),
+    expect(rollbackState.rows).toEqual([{ current_decision: "hold", status: "pending" }]);
+
+    const expiryResolved = await withAppTransaction(
+      pool,
+      async () => undefined,
+      (client) =>
+        client.query(
+          "SELECT * FROM public.hermes_resolve_approval($1, 'deny', 'expiry', 'Approval expired')",
+          [expiredApproval.rows[0]!.id],
+        ),
     );
-    expect(ownerGateway.rowCount).toBe(1);
+    expect(expiryResolved.rows[0]).toMatchObject({
+      approval_status: "expired",
+      current_decision: "deny",
+    });
+
+    const raceRequestId = await insertGatewayRequest(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      fixtures.externalKeyId,
+      `race-approval-${suffix()}`,
+    );
+    const raceApprovalId = await insertApproval(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      raceRequestId,
+      fixtures.assignedReviewerId,
+    );
+    const winner = await pool.connect();
+    const contender = await pool.connect();
+    try {
+      await winner.query("SET ROLE hermes_app");
+      await winner.query("BEGIN");
+      await winner.query("SELECT set_config('hermes.user_id', $1, true)", [fixtures.ownerId]);
+      await winner.query(
+        "SELECT * FROM public.hermes_resolve_approval($1, 'deny', 'owner_override', 'Owner won')",
+        [raceApprovalId],
+      );
+
+      await contender.query("SET ROLE hermes_app");
+      await contender.query("BEGIN");
+      await contender.query("SELECT set_config('hermes.user_id', $1, true)", [
+        fixtures.assignedReviewerId,
+      ]);
+      const contenderPid = await contender.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      const losingResolution = contender.query(
+        "SELECT * FROM public.hermes_resolve_approval($1, 'allow', 'web', 'Reviewer lost')",
+        [raceApprovalId],
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const blocked = await pool.query<{ waiting: boolean }>(
+        `SELECT wait_event_type = 'Lock' AND wait_event = 'advisory' AS waiting
+         FROM pg_stat_activity WHERE pid = $1`,
+        [contenderPid.rows[0]!.pid],
+      );
+      expect(blocked.rows).toEqual([{ waiting: true }]);
+
+      await winner.query("COMMIT");
+      await expect(losingResolution).rejects.toMatchObject({ code: "P0001" });
+      await contender.query("ROLLBACK");
+    } finally {
+      await winner.query("ROLLBACK").catch(() => undefined);
+      await contender.query("ROLLBACK").catch(() => undefined);
+      await winner.query("RESET ROLE").catch(() => undefined);
+      await contender.query("RESET ROLE").catch(() => undefined);
+      winner.release();
+      contender.release();
+    }
+    const raceState = await pool.query(
+      `SELECT approval.status::text, approval.resolution_source::text,
+              approval.resolved_by_user_id, request.current_decision::text
+       FROM public.pending_approvals approval
+       JOIN public.gateway_requests request ON request.id = approval.gateway_request_id
+       WHERE approval.id = $1`,
+      [raceApprovalId],
+    );
+    expect(raceState.rows).toEqual([
+      {
+        current_decision: "deny",
+        resolution_source: "owner_override",
+        resolved_by_user_id: fixtures.ownerId,
+        status: "denied",
+      },
+    ]);
+  });
+
+  it("records Telegram delivery attempts monotonically without terminal-state regression", async () => {
+    const policyCount = await pool.query<{ count: number }>(
+      "SELECT count(*)::int AS count FROM public.agent_policies WHERE agent_id = $1 AND version = 1",
+      [fixtures.agentId],
+    );
+    if (policyCount.rows[0]!.count === 0) {
+      await insertPolicy(
+        pool,
+        fixtures.organizationId,
+        fixtures.agentId,
+        fixtures.assignedReviewerId,
+      );
+    }
+    const requestId = await insertGatewayRequest(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      fixtures.externalKeyId,
+      `delivery-${suffix()}`,
+    );
+    const approvalId = await insertApproval(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      requestId,
+      fixtures.assignedReviewerId,
+    );
+
+    for (const [state, errorCode] of [
+      ["pending", null],
+      ["failed", "TELEGRAM_TIMEOUT"],
+      ["pending", null],
+      ["sent", null],
+    ] as const) {
+      await withAppTransaction(
+        pool,
+        async () => undefined,
+        (client) =>
+          client.query("SELECT * FROM public.hermes_record_approval_delivery($1, $2, $3)", [
+            approvalId,
+            state,
+            errorCode,
+          ]),
+      );
+    }
+    const delivered = await pool.query(
+      `SELECT telegram_delivery_state::text, telegram_delivery_attempts,
+              telegram_delivered_at IS NOT NULL AS delivered
+       FROM public.pending_approvals WHERE id = $1`,
+      [approvalId],
+    );
+    expect(delivered.rows).toEqual([
+      { delivered: true, telegram_delivery_attempts: 2, telegram_delivery_state: "sent" },
+    ]);
+
+    await expectSqlState(
+      () =>
+        withAppTransaction(
+          pool,
+          async () => undefined,
+          (client) =>
+            client.query("SELECT * FROM public.hermes_record_approval_delivery($1, 'failed', $2)", [
+              approvalId,
+              "LATE_FAILURE",
+            ]),
+        ),
+      "P0001",
+    );
+    await expectSqlState(
+      () =>
+        withAppUser(pool, fixtures.ownerId, (client) =>
+          client.query(
+            `UPDATE public.pending_approvals
+             SET telegram_delivery_attempts = telegram_delivery_attempts - 1
+             WHERE id = $1`,
+            [approvalId],
+          ),
+        ),
+      "42501",
+    );
+
+    const resolvedRequestId = await insertGatewayRequest(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      fixtures.externalKeyId,
+      `resolved-delivery-${suffix()}`,
+    );
+    const resolvedApprovalId = await insertApproval(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      resolvedRequestId,
+      fixtures.assignedReviewerId,
+    );
+    await withAppUser(pool, fixtures.assignedReviewerId, (client) =>
+      client.query("SELECT * FROM public.hermes_resolve_approval($1, 'deny', 'web', 'Resolved')", [
+        resolvedApprovalId,
+      ]),
+    );
+    await expectSqlState(
+      () =>
+        withAppTransaction(
+          pool,
+          async () => undefined,
+          (client) =>
+            client.query(
+              "SELECT * FROM public.hermes_record_approval_delivery($1, 'pending', NULL) ",
+              [resolvedApprovalId],
+            ),
+        ),
+      "P0001",
+    );
+  });
+
+  it("enforces duplicate-nonce, one-to-one approval, and composite tenant integrity", async () => {
+    const policyCount = await pool.query<{ count: number }>(
+      "SELECT count(*)::int AS count FROM public.agent_policies WHERE agent_id = $1 AND version = 1",
+      [fixtures.agentId],
+    );
+    if (policyCount.rows[0]!.count === 0) {
+      await insertPolicy(
+        pool,
+        fixtures.organizationId,
+        fixtures.agentId,
+        fixtures.assignedReviewerId,
+      );
+    }
+
+    const duplicateNonce = `duplicate-${suffix()}`;
+    await insertGatewayRequest(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      fixtures.externalKeyId,
+      duplicateNonce,
+      "deny",
+    );
+    await expectSqlState(
+      () =>
+        insertGatewayRequest(
+          pool,
+          fixtures.organizationId,
+          fixtures.agentId,
+          fixtures.externalKeyId,
+          duplicateNonce,
+          "deny",
+        ),
+      "23505",
+    );
+
+    const requestId = await insertGatewayRequest(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      fixtures.externalKeyId,
+      `one-to-one-${suffix()}`,
+    );
+    await insertApproval(
+      pool,
+      fixtures.organizationId,
+      fixtures.agentId,
+      requestId,
+      fixtures.assignedReviewerId,
+    );
+    await expectSqlState(
+      () =>
+        insertApproval(
+          pool,
+          fixtures.organizationId,
+          fixtures.agentId,
+          requestId,
+          fixtures.assignedReviewerId,
+        ),
+      "23505",
+    );
+
+    await expectSqlState(
+      () =>
+        insertGatewayRequest(
+          pool,
+          fixtures.organizationId,
+          fixtures.otherAgentId,
+          fixtures.otherExternalKeyId,
+          `cross-agent-tenant-${suffix()}`,
+          "deny",
+        ),
+      "23503",
+    );
+    await expectSqlState(
+      () =>
+        insertGatewayRequest(
+          pool,
+          fixtures.organizationId,
+          fixtures.agentId,
+          fixtures.otherExternalKeyId,
+          `cross-key-tenant-${suffix()}`,
+          "deny",
+        ),
+      "23503",
+    );
   });
 
   it("uses one per-agent transaction lock for policy allocation, gateway spend, and resolution", async () => {

@@ -41,6 +41,8 @@ describe("additive Phase 2 policy gateway migration", () => {
     );
     expect(schema).toContain('emailSnapshot: text("email_snapshot")');
     expect(schema).toContain('nameSnapshot: text("name_snapshot")');
+    expect(schema).toContain("9007199254740991");
+    expect(schema).toContain("gateway_requests_allow_hkd_check");
     expect(schema).not.toMatch(/(?:plain|raw)_?token/i);
   });
 
@@ -64,11 +66,29 @@ describe("additive Phase 2 policy gateway migration", () => {
     expect(sql).toContain("gateway_requests_agent_nonce_key");
     expect(sql).toContain("pending_approvals_request_key");
     expect(sql).toContain("hermes_set_verified_agent_claim");
+    expect(sql).toContain("hermes_create_agent_key_enrollment");
+    expect(sql).toContain("hermes_consume_agent_key_enrollment");
+    expect(sql).toContain("hermes_create_telegram_link_token");
+    expect(sql).toContain("hermes_consume_telegram_link_token");
+    expect(sql).toContain("hermes_resolve_approval");
+    expect(sql).toContain("hermes_record_approval_delivery");
     expect(sql).toContain("hermes_next_policy_version");
     expect(sql).toContain("hermes_lock_gateway_decision");
     expect(sql).toContain("hermes_lock_approval_resolution");
     expect(sql).toContain("pg_catalog.pg_advisory_xact_lock");
     expect(sql).toContain("SET search_path = pg_catalog, public, pg_temp");
+    expect(sql).toContain("agent_audit_logs_amount_safe_integer_check");
+    expect(sql).toContain("agents_spend_cap_safe_integer_check");
+    expect(sql).toContain("gateway_requests_allow_hkd_check");
+    expect(sql).toContain("agent.status = 'active'");
+    expect(sql).toContain("key.status = 'active'");
+    expect(sql).toContain("agent.expires_at > pg_catalog.clock_timestamp()");
+    expect(sql).not.toMatch(
+      /GRANT\s+(?:INSERT|UPDATE|SELECT)[^;]*agent_key_enrollments\s+TO\s+hermes_app/i,
+    );
+    expect(sql).not.toMatch(
+      /GRANT\s+(?:INSERT|UPDATE|SELECT)[^;]*telegram_link_tokens\s+TO\s+hermes_app/i,
+    );
     expect(sql).not.toContain("CREATE OR REPLACE FUNCTION public.hermes_audit_before_insert");
     expect(sql).not.toContain("CREATE FUNCTION public.hermes_audit_before_insert");
     expect(sql).not.toMatch(/(?:plain|raw)_?token/i);

@@ -191,7 +191,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "agent_audit_logs_amount_safe_integer_check": {
+          "name": "agent_audit_logs_amount_safe_integer_check",
+          "value": "\"agent_audit_logs\".\"amount_cents\" IS NULL\n        OR \"agent_audit_logs\".\"amount_cents\" BETWEEN -9007199254740991 AND 9007199254740991"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.agent_key_enrollments": {
@@ -757,7 +762,7 @@
         },
         "agent_policies_limits_ordered_check": {
           "name": "agent_policies_limits_ordered_check",
-          "value": "\"agent_policies\".\"per_transaction_limit_cents\" >= 0\n        AND \"agent_policies\".\"daily_limit_cents\" >= \"agent_policies\".\"per_transaction_limit_cents\"\n        AND \"agent_policies\".\"monthly_limit_cents\" >= \"agent_policies\".\"daily_limit_cents\"\n        AND \"agent_policies\".\"approval_threshold_cents\" >= 0\n        AND \"agent_policies\".\"approval_threshold_cents\" <= \"agent_policies\".\"per_transaction_limit_cents\""
+          "value": "\"agent_policies\".\"per_transaction_limit_cents\" >= 0\n        AND \"agent_policies\".\"per_transaction_limit_cents\" <= 9007199254740991\n        AND \"agent_policies\".\"daily_limit_cents\" >= \"agent_policies\".\"per_transaction_limit_cents\"\n        AND \"agent_policies\".\"daily_limit_cents\" <= 9007199254740991\n        AND \"agent_policies\".\"monthly_limit_cents\" >= \"agent_policies\".\"daily_limit_cents\"\n        AND \"agent_policies\".\"monthly_limit_cents\" <= 9007199254740991\n        AND \"agent_policies\".\"approval_threshold_cents\" >= 0\n        AND \"agent_policies\".\"approval_threshold_cents\" <= 9007199254740991\n        AND \"agent_policies\".\"approval_threshold_cents\" <= \"agent_policies\".\"per_transaction_limit_cents\""
         },
         "agent_policies_mcc_requirement_check": {
           "name": "agent_policies_mcc_requirement_check",
@@ -1003,7 +1008,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "agents_spend_cap_safe_integer_check": {
+          "name": "agents_spend_cap_safe_integer_check",
+          "value": "\"agents\".\"spend_cap_cents\" <= 9007199254740991"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.gateway_requests": {
@@ -1311,11 +1321,15 @@
         },
         "gateway_requests_amount_nonnegative_check": {
           "name": "gateway_requests_amount_nonnegative_check",
-          "value": "\"gateway_requests\".\"amount_cents\" IS NULL OR \"gateway_requests\".\"amount_cents\" >= 0"
+          "value": "\"gateway_requests\".\"amount_cents\" IS NULL\n        OR (\"gateway_requests\".\"amount_cents\" >= 0 AND \"gateway_requests\".\"amount_cents\" <= 9007199254740991)"
         },
         "gateway_requests_spend_metadata_check": {
           "name": "gateway_requests_spend_metadata_check",
           "value": "(\"gateway_requests\".\"amount_cents\" IS NULL AND \"gateway_requests\".\"currency\" IS NULL AND \"gateway_requests\".\"merchant_category_code\" IS NULL)\n        OR (\"gateway_requests\".\"amount_cents\" IS NOT NULL AND \"gateway_requests\".\"currency\" ~ '^[A-Z]{3}$')"
+        },
+        "gateway_requests_allow_hkd_check": {
+          "name": "gateway_requests_allow_hkd_check",
+          "value": "\"gateway_requests\".\"current_decision\" <> 'allow' OR \"gateway_requests\".\"currency\" = 'HKD'"
         },
         "gateway_requests_authorization_timing_check": {
           "name": "gateway_requests_authorization_timing_check",

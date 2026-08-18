@@ -46,9 +46,13 @@ CREATE TABLE "agent_policies" (
 	CONSTRAINT "agent_policies_version_positive_check" CHECK ("agent_policies"."version" > 0),
 	CONSTRAINT "agent_policies_currency_hkd_check" CHECK ("agent_policies"."currency" = 'HKD'),
 	CONSTRAINT "agent_policies_limits_ordered_check" CHECK ("agent_policies"."per_transaction_limit_cents" >= 0
+        AND "agent_policies"."per_transaction_limit_cents" <= 9007199254740991
         AND "agent_policies"."daily_limit_cents" >= "agent_policies"."per_transaction_limit_cents"
+        AND "agent_policies"."daily_limit_cents" <= 9007199254740991
         AND "agent_policies"."monthly_limit_cents" >= "agent_policies"."daily_limit_cents"
+        AND "agent_policies"."monthly_limit_cents" <= 9007199254740991
         AND "agent_policies"."approval_threshold_cents" >= 0
+        AND "agent_policies"."approval_threshold_cents" <= 9007199254740991
         AND "agent_policies"."approval_threshold_cents" <= "agent_policies"."per_transaction_limit_cents"),
 	CONSTRAINT "agent_policies_mcc_requirement_check" CHECK (NOT "agent_policies"."mcc_required" OR cardinality("agent_policies"."mcc_allowlist") > 0),
 	CONSTRAINT "agent_policies_mcc_values_check" CHECK (cardinality("agent_policies"."mcc_allowlist") = 0
@@ -101,9 +105,11 @@ CREATE TABLE "gateway_requests" (
 	CONSTRAINT "gateway_requests_reason_fields_check" CHECK (length(btrim("gateway_requests"."reason_code")) BETWEEN 1 AND 100
         AND length(btrim("gateway_requests"."reason")) BETWEEN 1 AND 1000),
 	CONSTRAINT "gateway_requests_mcc_format_check" CHECK ("gateway_requests"."merchant_category_code" IS NULL OR "gateway_requests"."merchant_category_code" ~ '^[0-9]{4}$'),
-	CONSTRAINT "gateway_requests_amount_nonnegative_check" CHECK ("gateway_requests"."amount_cents" IS NULL OR "gateway_requests"."amount_cents" >= 0),
+	CONSTRAINT "gateway_requests_amount_nonnegative_check" CHECK ("gateway_requests"."amount_cents" IS NULL
+        OR ("gateway_requests"."amount_cents" >= 0 AND "gateway_requests"."amount_cents" <= 9007199254740991)),
 	CONSTRAINT "gateway_requests_spend_metadata_check" CHECK (("gateway_requests"."amount_cents" IS NULL AND "gateway_requests"."currency" IS NULL AND "gateway_requests"."merchant_category_code" IS NULL)
         OR ("gateway_requests"."amount_cents" IS NOT NULL AND "gateway_requests"."currency" ~ '^[A-Z]{3}$')),
+	CONSTRAINT "gateway_requests_allow_hkd_check" CHECK ("gateway_requests"."current_decision" <> 'allow' OR "gateway_requests"."currency" = 'HKD'),
 	CONSTRAINT "gateway_requests_authorization_timing_check" CHECK ((
           "gateway_requests"."current_decision" = 'allow'
           AND "gateway_requests"."authorized_at" IS NOT NULL
@@ -214,6 +220,9 @@ ALTER TABLE "agent_keys" ALTER COLUMN "kek_version" DROP NOT NULL;--> statement-
 ALTER TABLE "agent_keys" ALTER COLUMN "encryption_algorithm" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_keys" ADD COLUMN "custody" "agent_key_custody" DEFAULT 'legacy_encrypted' NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_keys" ADD CONSTRAINT "agent_keys_id_agent_organization_key" UNIQUE("id","agent_id","organization_id");--> statement-breakpoint
+ALTER TABLE "agents" ADD CONSTRAINT "agents_spend_cap_safe_integer_check" CHECK ("agents"."spend_cap_cents" <= 9007199254740991);--> statement-breakpoint
+ALTER TABLE "agent_audit_logs" ADD CONSTRAINT "agent_audit_logs_amount_safe_integer_check" CHECK ("agent_audit_logs"."amount_cents" IS NULL
+        OR "agent_audit_logs"."amount_cents" BETWEEN -9007199254740991 AND 9007199254740991);--> statement-breakpoint
 ALTER TABLE "org_members" ADD COLUMN "email_snapshot" text;--> statement-breakpoint
 ALTER TABLE "org_members" ADD COLUMN "name_snapshot" text;--> statement-breakpoint
 ALTER TABLE "agent_key_enrollments" ADD CONSTRAINT "agent_key_enrollments_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -315,14 +324,11 @@ REVOKE ALL ON public.agent_policies, public.gateway_requests,
   public.pending_approvals, public.agent_key_enrollments,
   public.telegram_links, public.telegram_link_tokens FROM PUBLIC;--> statement-breakpoint
 GRANT SELECT ON public.agent_policies, public.gateway_requests,
-  public.pending_approvals, public.agent_key_enrollments,
-  public.telegram_links, public.telegram_link_tokens TO hermes_app;--> statement-breakpoint
+  public.pending_approvals, public.telegram_links TO hermes_app;--> statement-breakpoint
 GRANT INSERT, UPDATE ON public.agent_policies TO hermes_app;--> statement-breakpoint
-GRANT INSERT, UPDATE ON public.gateway_requests TO hermes_app;--> statement-breakpoint
-GRANT INSERT, UPDATE ON public.pending_approvals TO hermes_app;--> statement-breakpoint
-GRANT INSERT ON public.agent_key_enrollments TO hermes_app;--> statement-breakpoint
-GRANT INSERT, UPDATE ON public.telegram_links TO hermes_app;--> statement-breakpoint
-GRANT INSERT ON public.telegram_link_tokens TO hermes_app;--> statement-breakpoint
+GRANT INSERT ON public.gateway_requests TO hermes_app;--> statement-breakpoint
+GRANT INSERT ON public.pending_approvals TO hermes_app;--> statement-breakpoint
+GRANT UPDATE ON public.telegram_links TO hermes_app;--> statement-breakpoint
 
 REVOKE ALL ON TYPE public.agent_key_custody, public.approval_resolution_source,
   public.approval_status, public.gateway_decision, public.telegram_delivery_state FROM PUBLIC;--> statement-breakpoint
@@ -361,9 +367,37 @@ USING (
     WHERE relation.oid = 'public.gateway_requests'::pg_catalog.regclass
   ))
 );--> statement-breakpoint
+CREATE POLICY gateway_requests_owner_function_update ON public.gateway_requests
+FOR UPDATE TO PUBLIC
+USING (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.gateway_requests'::pg_catalog.regclass
+  ))
+)
+WITH CHECK (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.gateway_requests'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
 CREATE POLICY pending_approvals_owner_function_select ON public.pending_approvals
 FOR SELECT TO PUBLIC
 USING (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.pending_approvals'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
+CREATE POLICY pending_approvals_owner_function_update ON public.pending_approvals
+FOR UPDATE TO PUBLIC
+USING (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.pending_approvals'::pg_catalog.regclass
+  ))
+)
+WITH CHECK (
   current_user = pg_catalog.pg_get_userbyid((
     SELECT relation.relowner FROM pg_catalog.pg_class relation
     WHERE relation.oid = 'public.pending_approvals'::pg_catalog.regclass
@@ -377,9 +411,53 @@ USING (
     WHERE relation.oid = 'public.agent_key_enrollments'::pg_catalog.regclass
   ))
 );--> statement-breakpoint
+CREATE POLICY agent_key_enrollments_owner_function_insert ON public.agent_key_enrollments
+FOR INSERT TO PUBLIC
+WITH CHECK (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.agent_key_enrollments'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
+CREATE POLICY agent_key_enrollments_owner_function_update ON public.agent_key_enrollments
+FOR UPDATE TO PUBLIC
+USING (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.agent_key_enrollments'::pg_catalog.regclass
+  ))
+)
+WITH CHECK (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.agent_key_enrollments'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
 CREATE POLICY telegram_links_owner_function_select ON public.telegram_links
 FOR SELECT TO PUBLIC
 USING (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.telegram_links'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
+CREATE POLICY telegram_links_owner_function_insert ON public.telegram_links
+FOR INSERT TO PUBLIC
+WITH CHECK (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.telegram_links'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
+CREATE POLICY telegram_links_owner_function_update ON public.telegram_links
+FOR UPDATE TO PUBLIC
+USING (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.telegram_links'::pg_catalog.regclass
+  ))
+)
+WITH CHECK (
   current_user = pg_catalog.pg_get_userbyid((
     SELECT relation.relowner FROM pg_catalog.pg_class relation
     WHERE relation.oid = 'public.telegram_links'::pg_catalog.regclass
@@ -391,6 +469,51 @@ USING (
   current_user = pg_catalog.pg_get_userbyid((
     SELECT relation.relowner FROM pg_catalog.pg_class relation
     WHERE relation.oid = 'public.telegram_link_tokens'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
+CREATE POLICY telegram_link_tokens_owner_function_insert ON public.telegram_link_tokens
+FOR INSERT TO PUBLIC
+WITH CHECK (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.telegram_link_tokens'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
+CREATE POLICY telegram_link_tokens_owner_function_update ON public.telegram_link_tokens
+FOR UPDATE TO PUBLIC
+USING (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.telegram_link_tokens'::pg_catalog.regclass
+  ))
+)
+WITH CHECK (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.telegram_link_tokens'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
+
+CREATE POLICY agent_keys_owner_function_insert ON public.agent_keys
+FOR INSERT TO PUBLIC
+WITH CHECK (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.agent_keys'::pg_catalog.regclass
+  ))
+);--> statement-breakpoint
+CREATE POLICY agent_keys_owner_function_update ON public.agent_keys
+FOR UPDATE TO PUBLIC
+USING (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.agent_keys'::pg_catalog.regclass
+  ))
+)
+WITH CHECK (
+  current_user = pg_catalog.pg_get_userbyid((
+    SELECT relation.relowner FROM pg_catalog.pg_class relation
+    WHERE relation.oid = 'public.agent_keys'::pg_catalog.regclass
   ))
 );--> statement-breakpoint
 
@@ -468,6 +591,9 @@ BEGIN
       AND key.agent_id = p_agent_id
       AND key.organization_id = p_organization_id
       AND key.custody = 'external'
+      AND key.status = 'active'
+      AND agent.status = 'active'
+      AND agent.expires_at > pg_catalog.clock_timestamp()
   ) THEN
     RAISE EXCEPTION 'AGENT_KEY_NOT_FOUND' USING ERRCODE = 'P0002';
   END IF;
@@ -478,6 +604,486 @@ BEGIN
   );
   PERFORM pg_catalog.set_config('hermes.agent_key_id', p_key_id::text, true);
   PERFORM pg_catalog.set_config('hermes.agent_verified', '1', true);
+END
+$$;--> statement-breakpoint
+
+CREATE FUNCTION public.hermes_create_agent_key_enrollment(
+  p_organization_id uuid,
+  p_agent_id uuid,
+  p_token_hash bytea
+) RETURNS TABLE(enrollment_id uuid, expires_at timestamptz)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  caller_user_id text := public.hermes_current_user_id();
+  enrollment_issued_at timestamptz := pg_catalog.clock_timestamp();
+BEGIN
+  IF pg_catalog.octet_length(p_token_hash) <> 32
+    OR NOT public.hermes_has_org_role(
+      p_organization_id,
+      ARRAY['owner', 'admin']::public.member_role[]
+    )
+    OR NOT EXISTS (
+      SELECT 1
+      FROM public.agents agent
+      WHERE agent.id = p_agent_id
+        AND agent.organization_id = p_organization_id
+        AND agent.status = 'active'
+        AND agent.expires_at > enrollment_issued_at
+    )
+  THEN
+    RAISE EXCEPTION 'permission denied for agent key enrollment'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  INSERT INTO public.agent_key_enrollments (
+    organization_id,
+    agent_id,
+    token_hash,
+    expires_at,
+    created_by_user_id,
+    created_at
+  ) VALUES (
+    p_organization_id,
+    p_agent_id,
+    p_token_hash,
+    enrollment_issued_at + interval '15 minutes',
+    caller_user_id,
+    enrollment_issued_at
+  )
+  RETURNING id, agent_key_enrollments.expires_at;
+END
+$$;--> statement-breakpoint
+
+CREATE FUNCTION public.hermes_consume_agent_key_enrollment(
+  p_token_hash bytea,
+  p_key_fragment text,
+  p_public_jwk jsonb,
+  p_thumbprint text
+) RETURNS TABLE(agent_id uuid, organization_id uuid, key_id uuid)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  enrollment_record record;
+  activated_key_id uuid;
+  consumed_time timestamptz;
+BEGIN
+  IF pg_catalog.octet_length(p_token_hash) <> 32
+    OR pg_catalog.length(pg_catalog.btrim(p_key_fragment)) NOT BETWEEN 1 AND 255
+    OR pg_catalog.length(pg_catalog.btrim(p_thumbprint)) NOT BETWEEN 1 AND 255
+    OR p_public_jwk IS NULL
+    OR p_public_jwk = '{}'::jsonb
+  THEN
+    RAISE EXCEPTION 'AGENT_ENROLLMENT_INVALID' USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT enrollment.id, enrollment.organization_id, enrollment.agent_id,
+    enrollment.expires_at, enrollment.consumed_at
+  INTO enrollment_record
+  FROM public.agent_key_enrollments enrollment
+  WHERE enrollment.token_hash = p_token_hash
+  FOR UPDATE;
+
+  IF NOT FOUND OR enrollment_record.consumed_at IS NOT NULL THEN
+    RAISE EXCEPTION 'AGENT_ENROLLMENT_INVALID' USING ERRCODE = 'P0002';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'hermes.agent:' || enrollment_record.agent_id::text,
+      0
+    )
+  );
+
+  consumed_time := pg_catalog.clock_timestamp();
+
+  IF enrollment_record.expires_at <= consumed_time
+    OR NOT EXISTS (
+      SELECT 1
+      FROM public.agents agent
+      WHERE agent.id = enrollment_record.agent_id
+        AND agent.organization_id = enrollment_record.organization_id
+        AND agent.status = 'active'
+        AND agent.expires_at > consumed_time
+    )
+  THEN
+    RAISE EXCEPTION 'AGENT_ENROLLMENT_INVALID' USING ERRCODE = 'P0002';
+  END IF;
+
+  UPDATE public.agent_keys existing_key
+  SET status = 'revoked', revoked_at = consumed_time
+  WHERE existing_key.agent_id = enrollment_record.agent_id
+    AND existing_key.organization_id = enrollment_record.organization_id
+    AND existing_key.status = 'active';
+
+  INSERT INTO public.agent_keys (
+    agent_id,
+    organization_id,
+    key_fragment,
+    public_jwk,
+    thumbprint,
+    custody,
+    status
+  ) VALUES (
+    enrollment_record.agent_id,
+    enrollment_record.organization_id,
+    p_key_fragment,
+    p_public_jwk,
+    p_thumbprint,
+    'external',
+    'active'
+  )
+  RETURNING id INTO activated_key_id;
+
+  UPDATE public.agent_key_enrollments enrollment
+  SET consumed_at = consumed_time,
+    consumed_key_id = activated_key_id
+  WHERE enrollment.id = enrollment_record.id;
+
+  RETURN QUERY SELECT enrollment_record.agent_id,
+    enrollment_record.organization_id, activated_key_id;
+END
+$$;--> statement-breakpoint
+
+CREATE FUNCTION public.hermes_create_telegram_link_token(
+  p_organization_id uuid,
+  p_user_id text,
+  p_token_hash bytea
+) RETURNS TABLE(link_token_id uuid, expires_at timestamptz)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  caller_user_id text := public.hermes_current_user_id();
+  token_issued_at timestamptz := pg_catalog.clock_timestamp();
+BEGIN
+  IF pg_catalog.octet_length(p_token_hash) <> 32
+    OR NOT public.hermes_has_org_role(
+      p_organization_id,
+      ARRAY['owner', 'admin']::public.member_role[]
+    )
+    OR NOT EXISTS (
+      SELECT 1
+      FROM public.org_members member
+      WHERE member.organization_id = p_organization_id
+        AND member.user_id = p_user_id
+        AND member.role IN ('owner', 'admin')
+    )
+  THEN
+    RAISE EXCEPTION 'permission denied for Telegram link token'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  INSERT INTO public.telegram_link_tokens (
+    organization_id,
+    user_id,
+    token_hash,
+    expires_at,
+    created_by_user_id,
+    created_at
+  ) VALUES (
+    p_organization_id,
+    p_user_id,
+    p_token_hash,
+    token_issued_at + interval '10 minutes',
+    caller_user_id,
+    token_issued_at
+  )
+  RETURNING telegram_link_tokens.id, telegram_link_tokens.expires_at;
+END
+$$;--> statement-breakpoint
+
+CREATE FUNCTION public.hermes_consume_telegram_link_token(
+  p_token_hash bytea,
+  p_telegram_user_id bigint,
+  p_telegram_chat_id bigint
+) RETURNS TABLE(organization_id uuid, user_id text, link_id uuid)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  token_record record;
+  activated_link_id uuid;
+  consumed_time timestamptz;
+BEGIN
+  IF pg_catalog.octet_length(p_token_hash) <> 32
+    OR p_telegram_user_id = 0
+    OR p_telegram_chat_id = 0
+  THEN
+    RAISE EXCEPTION 'TELEGRAM_LINK_TOKEN_INVALID' USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT token.id, token.organization_id, token.user_id,
+    token.expires_at, token.consumed_at
+  INTO token_record
+  FROM public.telegram_link_tokens token
+  WHERE token.token_hash = p_token_hash
+  FOR UPDATE;
+
+  consumed_time := pg_catalog.clock_timestamp();
+
+  IF NOT FOUND
+    OR token_record.consumed_at IS NOT NULL
+    OR token_record.expires_at <= consumed_time
+    OR NOT EXISTS (
+      SELECT 1
+      FROM public.org_members member
+      WHERE member.organization_id = token_record.organization_id
+        AND member.user_id = token_record.user_id
+        AND member.role IN ('owner', 'admin')
+    )
+  THEN
+    RAISE EXCEPTION 'TELEGRAM_LINK_TOKEN_INVALID' USING ERRCODE = 'P0002';
+  END IF;
+
+  UPDATE public.telegram_links existing_link
+  SET is_active = false, revoked_at = consumed_time
+  WHERE existing_link.organization_id = token_record.organization_id
+    AND existing_link.user_id = token_record.user_id
+    AND existing_link.is_active;
+
+  INSERT INTO public.telegram_links (
+    organization_id,
+    user_id,
+    telegram_user_id,
+    telegram_chat_id,
+    is_active,
+    linked_at
+  ) VALUES (
+    token_record.organization_id,
+    token_record.user_id,
+    p_telegram_user_id,
+    p_telegram_chat_id,
+    true,
+    consumed_time
+  )
+  RETURNING telegram_links.id INTO activated_link_id;
+
+  UPDATE public.telegram_link_tokens token
+  SET consumed_at = consumed_time,
+    consumed_link_id = activated_link_id
+  WHERE token.id = token_record.id;
+
+  RETURN QUERY SELECT token_record.organization_id,
+    token_record.user_id, activated_link_id;
+END
+$$;--> statement-breakpoint
+
+CREATE FUNCTION public.hermes_resolve_approval(
+  p_approval_id uuid,
+  p_resolution public.gateway_decision,
+  p_resolution_source public.approval_resolution_source,
+  p_reason text
+) RETURNS TABLE(
+  approval_id uuid,
+  gateway_request_id uuid,
+  approval_status public.approval_status,
+  current_decision public.gateway_decision
+)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  approval_agent_id uuid;
+  approval_record record;
+  resolver_user_id text := public.hermes_current_user_id();
+  resolution_time timestamptz;
+  next_approval_status public.approval_status;
+BEGIN
+  IF p_resolution NOT IN ('allow', 'deny')
+    OR pg_catalog.length(pg_catalog.btrim(p_reason)) NOT BETWEEN 1 AND 1000
+  THEN
+    RAISE EXCEPTION 'invalid approval resolution' USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT approval.agent_id
+  INTO approval_agent_id
+  FROM public.pending_approvals approval
+  WHERE approval.id = p_approval_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'approval is unavailable' USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('hermes.agent:' || approval_agent_id::text, 0)
+  );
+
+  SELECT approval.id, approval.organization_id, approval.agent_id,
+    approval.gateway_request_id, approval.assigned_reviewer_user_id,
+    approval.status, approval.expires_at, request.current_decision
+  INTO approval_record
+  FROM public.pending_approvals approval
+  JOIN public.gateway_requests request
+    ON request.id = approval.gateway_request_id
+   AND request.agent_id = approval.agent_id
+   AND request.organization_id = approval.organization_id
+  WHERE approval.id = p_approval_id
+  FOR UPDATE OF approval, request;
+
+  resolution_time := pg_catalog.clock_timestamp();
+
+  IF NOT FOUND
+    OR approval_record.status <> 'pending'
+    OR approval_record.current_decision <> 'hold'
+  THEN
+    RAISE EXCEPTION 'approval is unavailable' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF p_resolution_source = 'expiry' THEN
+    IF p_resolution <> 'deny'
+      OR resolver_user_id IS NOT NULL
+      OR resolution_time < approval_record.expires_at
+    THEN
+      RAISE EXCEPTION 'invalid approval expiry' USING ERRCODE = 'P0001';
+    END IF;
+    next_approval_status := 'expired';
+  ELSE
+    IF resolution_time >= approval_record.expires_at THEN
+      RAISE EXCEPTION 'approval has expired' USING ERRCODE = 'P0001';
+    END IF;
+
+    IF p_resolution_source = 'owner_override' THEN
+      IF NOT public.hermes_has_org_role(
+        approval_record.organization_id,
+        ARRAY['owner']::public.member_role[]
+      ) THEN
+        RAISE EXCEPTION 'organization owner required for override'
+          USING ERRCODE = '42501';
+      END IF;
+    ELSIF p_resolution_source IN ('web', 'telegram') THEN
+      IF NOT (
+        public.hermes_has_org_role(
+          approval_record.organization_id,
+          ARRAY['owner']::public.member_role[]
+        )
+        OR (
+          resolver_user_id = approval_record.assigned_reviewer_user_id
+          AND public.hermes_has_org_role(
+            approval_record.organization_id,
+            ARRAY['owner', 'admin']::public.member_role[]
+          )
+        )
+      ) THEN
+        RAISE EXCEPTION 'assigned reviewer or organization owner required'
+          USING ERRCODE = '42501';
+      END IF;
+    ELSE
+      RAISE EXCEPTION 'invalid approval resolution source'
+        USING ERRCODE = '42501';
+    END IF;
+
+    next_approval_status := CASE
+      WHEN p_resolution = 'allow' THEN 'approved'::public.approval_status
+      ELSE 'denied'::public.approval_status
+    END;
+  END IF;
+
+  UPDATE public.pending_approvals approval
+  SET status = next_approval_status,
+    resolution = p_resolution,
+    resolution_source = p_resolution_source,
+    resolution_reason = p_reason,
+    resolved_by_user_id = CASE
+      WHEN p_resolution_source = 'expiry' THEN NULL
+      ELSE resolver_user_id
+    END,
+    resolved_at = resolution_time
+  WHERE approval.id = approval_record.id;
+
+  UPDATE public.gateway_requests request
+  SET current_decision = p_resolution,
+    reason_code = CASE
+      WHEN p_resolution_source = 'expiry' THEN 'APPROVAL_EXPIRED'
+      WHEN p_resolution = 'allow' THEN 'APPROVAL_APPROVED'
+      ELSE 'APPROVAL_DENIED'
+    END,
+    reason = p_reason,
+    current_result_updated_at = resolution_time,
+    authorized_at = CASE WHEN p_resolution = 'allow' THEN resolution_time ELSE NULL END,
+    authorization_expires_at = CASE
+      WHEN p_resolution = 'allow' THEN resolution_time + interval '5 minutes'
+      ELSE NULL
+    END
+  WHERE request.id = approval_record.gateway_request_id;
+
+  RETURN QUERY SELECT approval_record.id,
+    approval_record.gateway_request_id, next_approval_status, p_resolution;
+END
+$$;--> statement-breakpoint
+
+CREATE FUNCTION public.hermes_record_approval_delivery(
+  p_approval_id uuid,
+  p_delivery_state public.telegram_delivery_state,
+  p_error_code text
+) RETURNS TABLE(
+  approval_id uuid,
+  delivery_state public.telegram_delivery_state,
+  delivery_attempts integer
+)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  approval_record record;
+  attempt_time timestamptz;
+BEGIN
+  IF p_delivery_state NOT IN ('pending', 'sent', 'failed')
+    OR (p_delivery_state = 'failed' AND (
+      p_error_code IS NULL
+      OR pg_catalog.length(pg_catalog.btrim(p_error_code)) NOT BETWEEN 1 AND 100
+    ))
+    OR (p_delivery_state <> 'failed' AND p_error_code IS NOT NULL)
+  THEN
+    RAISE EXCEPTION 'invalid Telegram delivery update' USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT approval.id, approval.status, approval.expires_at,
+    approval.telegram_delivery_state, approval.telegram_delivery_attempts
+  INTO approval_record
+  FROM public.pending_approvals approval
+  WHERE approval.id = p_approval_id
+  FOR UPDATE;
+
+  attempt_time := pg_catalog.clock_timestamp();
+
+  IF NOT FOUND
+    OR approval_record.status <> 'pending'
+    OR approval_record.expires_at <= attempt_time
+    OR approval_record.telegram_delivery_state = 'sent'
+  THEN
+    RAISE EXCEPTION 'approval delivery is unavailable' USING ERRCODE = 'P0001';
+  END IF;
+
+  UPDATE public.pending_approvals approval
+  SET telegram_delivery_state = p_delivery_state,
+    telegram_delivery_attempts = CASE
+      WHEN p_delivery_state IN ('sent', 'failed')
+      THEN approval.telegram_delivery_attempts + 1
+      ELSE approval.telegram_delivery_attempts
+    END,
+    telegram_last_attempt_at = CASE
+      WHEN p_delivery_state IN ('sent', 'failed') THEN attempt_time
+      ELSE approval.telegram_last_attempt_at
+    END,
+    telegram_delivered_at = CASE
+      WHEN p_delivery_state = 'sent' THEN attempt_time
+      ELSE NULL
+    END,
+    telegram_last_error_code = CASE
+      WHEN p_delivery_state = 'failed' THEN p_error_code
+      ELSE NULL
+    END
+  WHERE approval.id = approval_record.id
+  RETURNING approval.id, approval.telegram_delivery_state,
+    approval.telegram_delivery_attempts
+  INTO approval_id, delivery_state, delivery_attempts;
+
+  RETURN NEXT;
 END
 $$;--> statement-breakpoint
 
@@ -886,6 +1492,24 @@ BEGIN
     RAISE EXCEPTION 'pending approval identity is immutable' USING ERRCODE = 'P0001';
   END IF;
 
+  IF NEW.telegram_delivery_attempts < OLD.telegram_delivery_attempts
+    OR (
+      (OLD.status <> 'pending' OR OLD.telegram_delivery_state = 'sent')
+      AND ROW(
+        OLD.telegram_delivery_state, OLD.telegram_delivery_attempts,
+        OLD.telegram_last_attempt_at, OLD.telegram_delivered_at,
+        OLD.telegram_last_error_code
+      ) IS DISTINCT FROM ROW(
+        NEW.telegram_delivery_state, NEW.telegram_delivery_attempts,
+        NEW.telegram_last_attempt_at, NEW.telegram_delivered_at,
+        NEW.telegram_last_error_code
+      )
+    )
+  THEN
+    RAISE EXCEPTION 'approval delivery state cannot regress'
+      USING ERRCODE = 'P0001';
+  END IF;
+
   IF OLD.status <> 'pending' AND ROW(
     OLD.status, OLD.resolution, OLD.resolution_source, OLD.resolution_reason,
     OLD.resolved_by_user_id, OLD.resolved_at
@@ -894,6 +1518,54 @@ BEGIN
     NEW.resolved_by_user_id, NEW.resolved_at
   ) THEN
     RAISE EXCEPTION 'approval resolution is single-use' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF OLD.status = 'pending' AND NEW.status <> 'pending' THEN
+    IF NEW.resolution_source = 'expiry' THEN
+      IF NEW.resolution <> 'deny'
+        OR NEW.resolved_by_user_id IS NOT NULL
+        OR pg_catalog.clock_timestamp() < OLD.expires_at
+      THEN
+        RAISE EXCEPTION 'invalid approval expiry' USING ERRCODE = 'P0001';
+      END IF;
+    ELSE
+      IF pg_catalog.clock_timestamp() >= OLD.expires_at
+        OR NEW.resolved_by_user_id IS DISTINCT FROM public.hermes_current_user_id()
+      THEN
+        RAISE EXCEPTION 'invalid approval resolver or expiry'
+          USING ERRCODE = '42501';
+      END IF;
+
+      IF NEW.resolution_source = 'owner_override' THEN
+        IF NOT public.hermes_has_org_role(
+          OLD.organization_id,
+          ARRAY['owner']::public.member_role[]
+        ) THEN
+          RAISE EXCEPTION 'organization owner required for override'
+            USING ERRCODE = '42501';
+        END IF;
+      ELSIF NEW.resolution_source IN ('web', 'telegram') THEN
+        IF NOT (
+          public.hermes_has_org_role(
+            OLD.organization_id,
+            ARRAY['owner']::public.member_role[]
+          )
+          OR (
+            NEW.resolved_by_user_id = OLD.assigned_reviewer_user_id
+            AND public.hermes_has_org_role(
+              OLD.organization_id,
+              ARRAY['owner', 'admin']::public.member_role[]
+            )
+          )
+        ) THEN
+          RAISE EXCEPTION 'assigned reviewer or organization owner required'
+            USING ERRCODE = '42501';
+        END IF;
+      ELSE
+        RAISE EXCEPTION 'invalid approval resolution source'
+          USING ERRCODE = '42501';
+      END IF;
+    END IF;
   END IF;
 
   RETURN NEW;
@@ -1092,6 +1764,12 @@ REVOKE ALL ON FUNCTION public.hermes_current_agent_id() FROM PUBLIC;--> statemen
 REVOKE ALL ON FUNCTION public.hermes_current_agent_organization_id() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.hermes_current_agent_key_id() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.hermes_set_verified_agent_claim(uuid, uuid, uuid) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hermes_create_agent_key_enrollment(uuid, uuid, bytea) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hermes_consume_agent_key_enrollment(bytea, text, jsonb, text) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hermes_create_telegram_link_token(uuid, text, bytea) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hermes_consume_telegram_link_token(bytea, bigint, bigint) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hermes_resolve_approval(uuid, public.gateway_decision, public.approval_resolution_source, text) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hermes_record_approval_delivery(uuid, public.telegram_delivery_state, text) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.hermes_agent_policy_guard() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.hermes_gateway_request_guard() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.hermes_pending_approval_guard() FROM PUBLIC;--> statement-breakpoint
@@ -1108,6 +1786,12 @@ GRANT EXECUTE ON FUNCTION public.hermes_current_agent_id() TO hermes_app;--> sta
 GRANT EXECUTE ON FUNCTION public.hermes_current_agent_organization_id() TO hermes_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.hermes_current_agent_key_id() TO hermes_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.hermes_set_verified_agent_claim(uuid, uuid, uuid) TO hermes_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hermes_create_agent_key_enrollment(uuid, uuid, bytea) TO hermes_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hermes_consume_agent_key_enrollment(bytea, text, jsonb, text) TO hermes_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hermes_create_telegram_link_token(uuid, text, bytea) TO hermes_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hermes_consume_telegram_link_token(bytea, bigint, bigint) TO hermes_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hermes_resolve_approval(uuid, public.gateway_decision, public.approval_resolution_source, text) TO hermes_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hermes_record_approval_delivery(uuid, public.telegram_delivery_state, text) TO hermes_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.hermes_lock_policy_version(uuid, uuid) TO hermes_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.hermes_next_policy_version(uuid, uuid) TO hermes_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.hermes_lock_gateway_decision(uuid) TO hermes_app;--> statement-breakpoint

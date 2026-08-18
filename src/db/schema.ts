@@ -155,6 +155,7 @@ export const agents = pgTable(
     unique("agents_id_organization_id_key").on(table.id, table.organizationId),
     index("agents_organization_id_idx").on(table.organizationId),
     index("agents_status_idx").on(table.status),
+    check("agents_spend_cap_safe_integer_check", sql`${table.spendCapCents} <= 9007199254740991`),
   ],
 );
 
@@ -274,9 +275,13 @@ export const agentPolicies = pgTable(
     check(
       "agent_policies_limits_ordered_check",
       sql`${table.perTransactionLimitCents} >= 0
+        AND ${table.perTransactionLimitCents} <= 9007199254740991
         AND ${table.dailyLimitCents} >= ${table.perTransactionLimitCents}
+        AND ${table.dailyLimitCents} <= 9007199254740991
         AND ${table.monthlyLimitCents} >= ${table.dailyLimitCents}
+        AND ${table.monthlyLimitCents} <= 9007199254740991
         AND ${table.approvalThresholdCents} >= 0
+        AND ${table.approvalThresholdCents} <= 9007199254740991
         AND ${table.approvalThresholdCents} <= ${table.perTransactionLimitCents}`,
     ),
     check(
@@ -398,12 +403,17 @@ export const gatewayRequests = pgTable(
     ),
     check(
       "gateway_requests_amount_nonnegative_check",
-      sql`${table.amountCents} IS NULL OR ${table.amountCents} >= 0`,
+      sql`${table.amountCents} IS NULL
+        OR (${table.amountCents} >= 0 AND ${table.amountCents} <= 9007199254740991)`,
     ),
     check(
       "gateway_requests_spend_metadata_check",
       sql`(${table.amountCents} IS NULL AND ${table.currency} IS NULL AND ${table.merchantCategoryCode} IS NULL)
         OR (${table.amountCents} IS NOT NULL AND ${table.currency} ~ '^[A-Z]{3}$')`,
+    ),
+    check(
+      "gateway_requests_allow_hkd_check",
+      sql`${table.currentDecision} <> 'allow' OR ${table.currency} = 'HKD'`,
     ),
     check(
       "gateway_requests_authorization_timing_check",
@@ -703,6 +713,11 @@ export const agentAuditLogs = pgTable(
       columns: [table.agentId, table.organizationId],
       foreignColumns: [agents.id, agents.organizationId],
     }).onDelete("restrict"),
+    check(
+      "agent_audit_logs_amount_safe_integer_check",
+      sql`${table.amountCents} IS NULL
+        OR ${table.amountCents} BETWEEN -9007199254740991 AND 9007199254740991`,
+    ),
   ],
 );
 
