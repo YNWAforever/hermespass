@@ -1,146 +1,33 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  SEED_EVENTS,
-  SEED_WALLETS,
-  type Decision,
-  type GatewayEvent,
-  type Wallet,
-} from "./hermes-data";
+
+import { SEED_WALLETS, type Wallet } from "./hermes-data";
 
 type HermesContextValue = {
-  events: GatewayEvent[];
   wallets: Wallet[];
   streaming: boolean;
-  setStreaming: (v: boolean) => void;
-  resolveEvent: (id: string, decision: Exclude<Decision, "hold">) => void;
-  escalateEvent: (id: string) => void;
+  setStreaming: (value: boolean) => void;
   updateWallet: (agentSlug: string, patch: Partial<Wallet>) => void;
 };
 
 const HermesContext = createContext<HermesContextValue | null>(null);
 
-const STREAM_TEMPLATES: Array<Omit<GatewayEvent, "id" | "timestamp">> = [
-  {
-    agentSlug: "kinnso-recommendation",
-    tool: "catalog.read",
-    summary: "Fetch trending SKUs for storefront carousel",
-    decision: "allow",
-    reason: "Read-only scope within passport capabilities.",
-  },
-  {
-    agentSlug: "fimmick-merchant-concierge",
-    tool: "refund.issue",
-    summary: "Refund of HK$ 640.00 for Order #9903",
-    amount: 640,
-    decision: "hold",
-    reason: "Exceeds HK$ 500 auto-approval cap for medium-risk agents.",
-  },
-  {
-    agentSlug: "adfocate-campaign-optimizer",
-    tool: "ads.bid",
-    summary: "Shift S$ 1,150.00 budget to campaign SG-Retarget",
-    amount: 1150,
-    decision: "hold",
-    reason: "Agent under audit — budget mutations require human review.",
-  },
-  {
-    agentSlug: "autoprocure-bot",
-    tool: "vendor.contract",
-    summary: "Countersign supply agreement with Nordwind Logistics",
-    decision: "deny",
-    reason: "Passport revoked — credential status list entry is invalid.",
-  },
-  {
-    agentSlug: "fimmick-merchant-concierge",
-    tool: "email.dispatch",
-    summary: "Send order-delay apology to 96 customers",
-    decision: "allow",
-    reason: "Within scope email.dispatch, no payment mandate attached.",
-  },
-  {
-    agentSlug: "kinnso-recommendation",
-    tool: "crm.read",
-    summary: "Read consented profile segments (1,004 records)",
-    decision: "allow",
-    reason: "PDPA consent flag present on every record.",
-  },
-];
-
 export function HermesProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
-  const [events, setEvents] = useState<GatewayEvent[]>(SEED_EVENTS);
   const [wallets, setWallets] = useState<Wallet[]>(SEED_WALLETS);
   const [streaming, setStreaming] = useState(true);
-  const [, setCounter] = useState(0);
 
-  useEffect(() => {
-    if (!streaming) return;
-    const timer = setInterval(() => {
-      setCounter((c) => {
-        const next = c + 1;
-        const template = STREAM_TEMPLATES[next % STREAM_TEMPLATES.length]!;
-        setEvents((prev) => [
-          {
-            ...template,
-            id: `evt-live-${next}`,
-            timestamp: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
-        return next;
-      });
-    }, 7000);
-    return () => clearInterval(timer);
-  }, [streaming]);
-
-  const resolveEvent = useCallback((id: string, decision: Exclude<Decision, "hold">) => {
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === id
-          ? {
-              ...e,
-              decision,
-              resolvedBy: "you@hermespass.asia",
-              reason:
-                decision === "allow"
-                  ? "Released by human reviewer — mandate re-signed and executed."
-                  : "Rejected by human reviewer — mandate voided.",
-            }
-          : e,
-      ),
+  const updateWallet = useCallback((agentSlug: string, patch: Partial<Wallet>) => {
+    setWallets((current) =>
+      current.map((wallet) => (wallet.agentSlug === agentSlug ? { ...wallet, ...patch } : wallet)),
     );
   }, []);
 
-  const escalateEvent = useCallback((id: string) => {
-    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, escalated: true } : e)));
-  }, []);
-
-  const updateWallet = useCallback((agentSlug: string, patch: Partial<Wallet>) => {
-    setWallets((prev) => prev.map((w) => (w.agentSlug === agentSlug ? { ...w, ...patch } : w)));
-  }, []);
-
   const value = useMemo<HermesContextValue>(
-    () => ({
-      events,
-      wallets,
-      streaming,
-      setStreaming,
-      resolveEvent,
-      escalateEvent,
-      updateWallet,
-    }),
-    [events, wallets, streaming, resolveEvent, escalateEvent, updateWallet],
+    () => ({ wallets, streaming, setStreaming, updateWallet }),
+    [wallets, streaming, updateWallet],
   );
 
   return (
@@ -151,7 +38,7 @@ export function HermesProvider({ children }: { children: ReactNode }) {
 }
 
 export function useHermes() {
-  const ctx = useContext(HermesContext);
-  if (!ctx) throw new Error("useHermes must be used inside HermesProvider");
-  return ctx;
+  const context = useContext(HermesContext);
+  if (!context) throw new Error("useHermes must be used inside HermesProvider");
+  return context;
 }

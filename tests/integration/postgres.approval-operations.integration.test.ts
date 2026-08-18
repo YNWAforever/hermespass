@@ -15,6 +15,7 @@ import {
 } from "@/lib/approvals/maintenance";
 import { ApprovalServiceError, resolveApproval } from "@/lib/approvals/service";
 import type { Transaction } from "@/lib/db";
+import { createPostgresGatewayActivityStore } from "@/lib/gateway/activity-postgres-store";
 import { generateEd25519KeyPair } from "@/lib/identity/keys";
 import { createPostgresTelegramDeliveryStore } from "@/lib/telegram/delivery-store";
 
@@ -133,11 +134,10 @@ async function waitForApplicationLock(pool: Pool, applicationName: string): Prom
   throw new Error("Telegram resolution did not reach the identity-lock barrier");
 }
 
-async function seedFixture(pool: Pool): Promise<Fixture> {
+async function seedFixture(pool: Pool, telegramId = 7_001_234_567): Promise<Fixture> {
   const pair = await generateEd25519KeyPair();
   const organizationId = crypto.randomUUID();
   const reviewerId = `approval-reviewer-${crypto.randomUUID()}`;
-  const telegramId = 7_001_234_567;
 
   await pool.query(
     "INSERT INTO public.organizations (id, name, slug) VALUES ($1, 'Approval org', $2)",
@@ -266,6 +266,73 @@ dbTest("PostgreSQL Task 5 approval operations", () => {
 
   afterAll(async () => {
     await pool?.end();
+  });
+
+  it("reads tenant-scoped safe activity metadata and gateway aggregates", async () => {
+    const activityFixture = await seedFixture(pool, 7_001_234_568);
+    const approvalId = await insertApproval(pool, activityFixture);
+    const store = createPostgresGatewayActivityStore(transactionRunner(pool));
+
+    const result = await store.list(activityFixture.reviewerId, activityFixture.organizationId);
+    const item = result.activity.find((entry) => entry.approvalId === approvalId);
+    await resolveApproval(
+      {
+        approvalId,
+        decision: "deny",
+        source: "web",
+        reason: "Task 6 integration fixture cleanup.",
+        actorUserId: activityFixture.reviewerId,
+      },
+      createPostgresApprovalStore(transactionRunner(pool)),
+    );
+
+    expect(item).toMatchObject({
+      agentId: activityFixture.agentId,
+      approvalStatus: "pending",
+      assignedReviewerUserId: activityFixture.reviewerId,
+      assignedReviewerName: "Approval reviewer",
+      assignedReviewerEmail: "reviewer@example.test",
+      decision: "hold",
+      requestDigest: expect.any(String),
+      keyThumbprint: expect.any(String),
+      policyVersion: 1,
+      authorizationExpiresAt: null,
+      telegramDeliveryState: "not_requested",
+    });
+    expect(item).not.toHaveProperty("payloadDigest");
+    expect(item).not.toHaveProperty("signatureDigest");
+    expect(result.aggregates).toMatchObject({
+      actionsToday: 1,
+      pendingHolds: 1,
+      blockedSpendCents: 0,
+      deniedCount: 0,
+      decisionCounts: { allow: 0, hold: 1, deny: 0 },
+    });
+    expect(result.aggregates.trend).toHaveLength(18);
+
+    const otherTenant = await seedFixture(pool, 7_001_234_569);
+    const otherApprovalId = await insertApproval(pool, otherTenant);
+    const otherVisible = await store.list(otherTenant.reviewerId, otherTenant.organizationId);
+    expect(otherVisible.activity.some((entry) => entry.approvalId === otherApprovalId)).toBe(true);
+    const isolated = await store.list(activityFixture.reviewerId, otherTenant.organizationId);
+    await resolveApproval(
+      {
+        approvalId: otherApprovalId,
+        decision: "deny",
+        source: "web",
+        reason: "Task 6 foreign-tenant fixture cleanup.",
+        actorUserId: otherTenant.reviewerId,
+      },
+      createPostgresApprovalStore(transactionRunner(pool)),
+    );
+    expect(isolated.activity).toEqual([]);
+    expect(isolated.aggregates).toMatchObject({
+      actionsToday: 0,
+      pendingHolds: 0,
+      blockedSpendCents: 0,
+      deniedCount: 0,
+      decisionCounts: { allow: 0, hold: 0, deny: 0 },
+    });
   });
 
   it("allows exactly one web/Telegram resolution winner with one safe audit event", async () => {

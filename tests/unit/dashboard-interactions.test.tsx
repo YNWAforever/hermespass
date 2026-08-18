@@ -56,15 +56,6 @@ function renderLiveGovernance() {
   );
 }
 
-async function openFirstHeldAction(user: ReturnType<typeof userEvent.setup>) {
-  const event = screen.getByRole("button", {
-    name: /Refund of HK\$ 820\.00 for Order #9812/i,
-  });
-  await user.click(event);
-  expect(screen.getByRole("heading", { name: "Human review" })).toBeInTheDocument();
-  return event;
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -194,7 +185,7 @@ describe("agent policy controls", () => {
   });
 });
 
-describe("dashboard mock interactions", () => {
+describe("dashboard interactions", () => {
   it("issues a passport without creating a wallet", async () => {
     const user = userEvent.setup();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -247,27 +238,6 @@ describe("dashboard mock interactions", () => {
     expect(screen.getByRole("button", { name: "Resume stream" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Resume stream" }));
     expect(screen.getByRole("button", { name: "Pause stream" })).toBeInTheDocument();
-  });
-
-  it.each([
-    ["Approve action", "allow"],
-    ["Reject action", "deny"],
-  ] as const)("can %s for a held gateway event", async (action, decision) => {
-    const user = userEvent.setup();
-    renderWithHermes(<ApprovalsClient />);
-    const event = await openFirstHeldAction(user);
-
-    await user.click(screen.getByRole("button", { name: action }));
-    expect(within(event).getByText(new RegExp(`^${decision}$`, "i"))).toBeInTheDocument();
-  });
-
-  it("escalates a held gateway event to Telegram", async () => {
-    const user = userEvent.setup();
-    renderWithHermes(<ApprovalsClient />);
-    await openFirstHeldAction(user);
-
-    await user.click(screen.getByRole("button", { name: "Escalate to Telegram" }));
-    expect(screen.getByText("escalated · telegram")).toBeInTheDocument();
   });
 
   it("changes wallet limits and freezes a card", async () => {
