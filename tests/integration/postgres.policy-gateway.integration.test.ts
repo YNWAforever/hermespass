@@ -149,6 +149,45 @@ async function expectSqlState(operation: () => Promise<unknown>, code: string): 
   await expect(operation()).rejects.toMatchObject({ code });
 }
 
+async function waitForBackendLockWait(
+  pool: Pool,
+  backendPid: number,
+  queryMarker: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const activity = await pool.query<{
+      query_matches: boolean;
+      wait_event: string | null;
+      wait_event_type: string | null;
+    }>(
+      `SELECT wait_event_type, wait_event, position($2 in query) > 0 AS query_matches
+       FROM pg_stat_activity
+       WHERE pid = $1`,
+      [backendPid, queryMarker],
+    );
+    const backend = activity.rows[0];
+    const rowLockWait = backend?.wait_event === "transactionid" || backend?.wait_event === "tuple";
+    if (backend?.wait_event_type === "Lock" && rowLockWait && backend.query_matches) return;
+    await pool.query("SELECT pg_sleep(0.01)");
+  }
+
+  throw new Error(`backend ${backendPid} never waited on the expected database lock`);
+}
+
+async function waitUntilAfterDatabaseTime(pool: Pool, expiresAt: Date): Promise<void> {
+  await pool.query(
+    `SELECT pg_sleep(
+       GREATEST(0.0, EXTRACT(EPOCH FROM ($1::timestamptz - clock_timestamp()))) + 0.05
+     )`,
+    [expiresAt],
+  );
+  const clock = await pool.query<{ expired: boolean }>(
+    "SELECT clock_timestamp() > $1::timestamptz AS expired",
+    [expiresAt],
+  );
+  expect(clock.rows).toEqual([{ expired: true }]);
+}
+
 async function insertAgent(
   client: SqlClient,
   organizationId: string,
@@ -919,19 +958,29 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
         ),
       "23514",
     );
-    await expectSqlState(
-      () =>
+    const nullCurrencyOutcomes = await Promise.allSettled(
+      (["allow", "deny", "hold"] as const).map((decision) =>
         insertGatewayRequest(
           pool,
           fixtures.organizationId,
           fixtures.agentId,
           fixtures.externalKeyId,
-          `allow-null-currency-${suffix()}`,
-          "allow",
+          `${decision}-null-currency-${suffix()}`,
+          decision,
           12000,
           null,
         ),
-      "23514",
+      ),
+    );
+    expect(nullCurrencyOutcomes).toEqual(
+      [
+        "gateway_requests_allow_hkd_check",
+        "gateway_requests_spend_metadata_check",
+        "gateway_requests_spend_metadata_check",
+      ].map((constraint) => ({
+        reason: expect.objectContaining({ code: "23514", constraint }),
+        status: "rejected",
+      })),
     );
     await expect(
       insertGatewayRequest(
@@ -1109,13 +1158,13 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
     );
 
     const lockExpiryHash = Buffer.alloc(32, 20);
-    const lockExpiryToken = await pool.query<{ id: string }>(
+    const lockExpiryToken = await pool.query<{ expires_at: Date; id: string }>(
       `INSERT INTO public.agent_key_enrollments (
         organization_id, agent_id, token_hash, expires_at, created_by_user_id, created_at
       ) VALUES (
-        $1, $2, $3, clock_timestamp() + interval '200 milliseconds', $4,
+        $1, $2, $3, clock_timestamp() + interval '1 second', $4,
         clock_timestamp() - interval '14 minutes'
-      ) RETURNING id`,
+      ) RETURNING id, expires_at`,
       [fixtures.organizationId, enrollmentAgentId, lockExpiryHash, fixtures.adminId],
     );
     const tokenLocker = await pool.connect();
@@ -1125,18 +1174,26 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
         "SELECT id FROM public.agent_key_enrollments WHERE id = $1 FOR UPDATE",
         [lockExpiryToken.rows[0]!.id],
       );
+      let resolveConsumerPid!: (pid: number) => void;
+      const consumerPid = new Promise<number>((resolve) => {
+        resolveConsumerPid = resolve;
+      });
       const blockedConsumption = withAppTransaction(
         pool,
         async () => undefined,
-        (client) =>
-          client.query(
+        async (client) => {
+          const pid = await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+          resolveConsumerPid(pid.rows[0]!.pid);
+          return client.query(
             `SELECT * FROM public.hermes_consume_agent_key_enrollment(
-            $1, 'lock-expired', '{"kty":"OKP"}'::jsonb, 'lock-expired'
-          )`,
+              $1, 'lock-expired', '{"kty":"OKP"}'::jsonb, 'lock-expired'
+            )`,
             [lockExpiryHash],
-          ),
+          );
+        },
       );
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await waitForBackendLockWait(pool, await consumerPid, "hermes_consume_agent_key_enrollment");
+      await waitUntilAfterDatabaseTime(pool, lockExpiryToken.rows[0]!.expires_at);
       await tokenLocker.query("COMMIT");
       await expect(blockedConsumption).rejects.toMatchObject({ code: "P0002" });
     } finally {
@@ -1360,13 +1417,13 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
     );
 
     const lockExpiryHash = Buffer.alloc(32, 30);
-    const lockExpiryToken = await pool.query<{ id: string }>(
+    const lockExpiryToken = await pool.query<{ expires_at: Date; id: string }>(
       `INSERT INTO public.telegram_link_tokens (
         organization_id, user_id, token_hash, expires_at, created_by_user_id, created_at
       ) VALUES (
-        $1, $2, $3, clock_timestamp() + interval '200 milliseconds', $4,
+        $1, $2, $3, clock_timestamp() + interval '1 second', $4,
         clock_timestamp() - interval '9 minutes'
-      ) RETURNING id`,
+      ) RETURNING id, expires_at`,
       [fixtures.organizationId, fixtures.unassignedAdminId, lockExpiryHash, fixtures.ownerId],
     );
     const tokenLocker = await pool.connect();
@@ -1376,17 +1433,24 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
         "SELECT id FROM public.telegram_link_tokens WHERE id = $1 FOR UPDATE",
         [lockExpiryToken.rows[0]!.id],
       );
+      let resolveConsumerPid!: (pid: number) => void;
+      const consumerPid = new Promise<number>((resolve) => {
+        resolveConsumerPid = resolve;
+      });
       const blockedConsumption = withAppTransaction(
         pool,
         async () => undefined,
-        (client) =>
-          client.query("SELECT * FROM public.hermes_consume_telegram_link_token($1, $2, $3)", [
-            lockExpiryHash,
-            telegramUserId + 3,
-            telegramChatId + 3,
-          ]),
+        async (client) => {
+          const pid = await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+          resolveConsumerPid(pid.rows[0]!.pid);
+          return client.query(
+            "SELECT * FROM public.hermes_consume_telegram_link_token($1, $2, $3)",
+            [lockExpiryHash, telegramUserId + 3, telegramChatId + 3],
+          );
+        },
       );
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await waitForBackendLockWait(pool, await consumerPid, "hermes_consume_telegram_link_token");
+      await waitUntilAfterDatabaseTime(pool, lockExpiryToken.rows[0]!.expires_at);
       await tokenLocker.query("COMMIT");
       await expect(blockedConsumption).rejects.toMatchObject({ code: "P0002" });
     } finally {
@@ -1781,6 +1845,38 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
     for (const [state, errorCode] of [
       ["pending", null],
       ["failed", "TELEGRAM_TIMEOUT"],
+    ] as const) {
+      await withAppTransaction(
+        pool,
+        async () => undefined,
+        (client) =>
+          client.query("SELECT * FROM public.hermes_record_approval_delivery($1, $2, $3)", [
+            approvalId,
+            state,
+            errorCode,
+          ]),
+      );
+    }
+    const retryable = await pool.query(
+      `SELECT status::text, telegram_delivery_state::text, telegram_delivery_attempts
+       FROM public.pending_approvals WHERE id = $1`,
+      [approvalId],
+    );
+    expect(retryable.rows).toEqual([
+      { status: "pending", telegram_delivery_state: "failed", telegram_delivery_attempts: 1 },
+    ]);
+    await expectSqlState(
+      () =>
+        pool.query(
+          `UPDATE public.pending_approvals
+           SET telegram_delivery_attempts = telegram_delivery_attempts - 1
+           WHERE id = $1`,
+          [approvalId],
+        ),
+      "P0001",
+    );
+
+    for (const [state, errorCode] of [
       ["pending", null],
       ["sent", null],
     ] as const) {
