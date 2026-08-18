@@ -43,6 +43,13 @@
       "when": 1787047200000,
       "tag": "0005_approval_revalidation",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787076767996,
+      "tag": "0006_scoped_payments",
+      "breakpoints": true
     }
   ]
 }

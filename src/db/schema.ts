@@ -45,6 +45,42 @@ export const telegramDeliveryState = pgEnum("telegram_delivery_state", [
   "failed",
 ]);
 
+export const mandateKind = pgEnum("mandate_kind", ["intent", "cart"]);
+export const mandateStatus = pgEnum("mandate_status", ["active", "consumed", "revoked", "expired"]);
+export const walletCardStatus = pgEnum("wallet_card_status", [
+  "provisioning",
+  "active",
+  "frozen",
+  "canceled",
+]);
+export const paymentDecision = pgEnum("payment_decision", ["allow", "deny"]);
+export const paymentAuthorizationStatus = pgEnum("payment_authorization_status", [
+  "pending",
+  "approved",
+  "declined",
+  "reversed",
+]);
+
+export type MandateKindValue = "intent" | "cart";
+
+export type MandateBodyV1 = {
+  version: "1";
+  mandateId: string;
+  agentDid: string;
+  keyId: string;
+  kind: MandateKindValue;
+  nonce: string;
+  issuedAt: string;
+  parentMandateId: string | null;
+  constraints: {
+    currency: "HKD";
+    maxAmountCents: number;
+    merchant: string | null;
+    mccAllowlist: string[];
+    expiresAt: string;
+    oneTime: boolean;
+  };
+};
 export type PublicJwk = JsonWebKey & { [key: string]: unknown };
 
 const bytea = customType<{ data: Buffer; driverData: Buffer; columnType: "bytea" }>({
@@ -440,6 +476,252 @@ export const gatewayRequests = pgTable(
   ],
 );
 
+export const mandates = pgTable(
+  "mandates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    agentId: uuid("agent_id").notNull(),
+    kind: mandateKind("kind").notNull(),
+    version: integer("version").notNull().default(1),
+    nonce: text("nonce").notNull(),
+    agentDid: text("agent_did").notNull(),
+    keyId: uuid("key_id").notNull(),
+    keyThumbprint: text("key_thumbprint").notNull(),
+    body: jsonb("body").$type<MandateBodyV1>().notNull(),
+    signature: bytea("signature").notNull(),
+    bodyDigest: bytea("body_digest").notNull(),
+    currency: text("currency").notNull().default("HKD"),
+    maxAmountCents: bigint("max_amount_cents", { mode: "number" }).notNull(),
+    mccAllowlist: text("mcc_allowlist")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    merchant: text("merchant"),
+    parentMandateId: uuid("parent_mandate_id"),
+    status: mandateStatus("status").notNull().default("active"),
+    oneTime: boolean("one_time").notNull().default(false),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("mandates_id_agent_organization_key").on(table.id, table.agentId, table.organizationId),
+    unique("mandates_agent_nonce_key").on(table.agentId, table.nonce),
+    index("mandates_active_agent_idx").on(
+      table.organizationId,
+      table.agentId,
+      table.status,
+      table.expiresAt,
+    ),
+    foreignKey({
+      name: "mandates_agent_organization_fk",
+      columns: [table.agentId, table.organizationId],
+      foreignColumns: [agents.id, agents.organizationId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "mandates_key_agent_organization_fk",
+      columns: [table.keyId, table.agentId, table.organizationId],
+      foreignColumns: [agentKeys.id, agentKeys.agentId, agentKeys.organizationId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "mandates_parent_agent_organization_fk",
+      columns: [table.parentMandateId, table.agentId, table.organizationId],
+      foreignColumns: [table.id, table.agentId, table.organizationId],
+    }).onDelete("restrict"),
+    check("mandates_version_positive_check", sql`${table.version} > 0`),
+    check("mandates_nonce_not_blank_check", sql`length(btrim(${table.nonce})) BETWEEN 1 AND 255`),
+    check("mandates_body_version_check", sql`${table.body} ->> 'version' = '1'`),
+    check("mandates_signature_length_check", sql`octet_length(${table.signature}) = 64`),
+    check("mandates_body_digest_length_check", sql`octet_length(${table.bodyDigest}) = 32`),
+    check("mandates_currency_hkd_check", sql`${table.currency} = 'HKD'`),
+    check(
+      "mandates_max_amount_safe_integer_check",
+      sql`${table.maxAmountCents} > 0 AND ${table.maxAmountCents} <= 9007199254740991`,
+    ),
+    check(
+      "mandates_mcc_values_check",
+      sql`cardinality(${table.mccAllowlist}) = 0
+        OR array_to_string(${table.mccAllowlist}, ',', '<invalid>') ~ '^[0-9]{4}(,[0-9]{4})*$'`,
+    ),
+    check("mandates_expiry_check", sql`${table.expiresAt} > ${table.issuedAt}`),
+    check(
+      "mandates_status_timestamps_check",
+      sql`(
+          ${table.status} = 'active'
+          AND ${table.consumedAt} IS NULL
+          AND ${table.revokedAt} IS NULL
+        ) OR (
+          ${table.status} = 'consumed'
+          AND ${table.consumedAt} IS NOT NULL
+          AND ${table.revokedAt} IS NULL
+        ) OR (
+          ${table.status} = 'revoked'
+          AND ${table.revokedAt} IS NOT NULL
+        ) OR (
+          ${table.status} = 'expired'
+          AND ${table.consumedAt} IS NULL
+        )`,
+    ),
+  ],
+);
+
+export const walletCards = pgTable(
+  "wallet_cards",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    agentId: uuid("agent_id").notNull(),
+    rail: text("rail").notNull(),
+    railCardholderId: text("rail_cardholder_id").notNull(),
+    railCardId: text("rail_card_id").notNull(),
+    last4: text("last4").notNull(),
+    brand: text("brand").notNull(),
+    currency: text("currency").notNull(),
+    status: walletCardStatus("status").notNull().default("provisioning"),
+    policyVersion: integer("policy_version").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    frozenAt: timestamp("frozen_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("wallet_cards_id_agent_organization_key").on(
+      table.id,
+      table.agentId,
+      table.organizationId,
+    ),
+    unique("wallet_cards_agent_key").on(table.organizationId, table.agentId),
+    unique("wallet_cards_rail_card_key").on(table.rail, table.railCardId),
+    index("wallet_cards_agent_status_idx").on(table.organizationId, table.agentId, table.status),
+    foreignKey({
+      name: "wallet_cards_agent_organization_fk",
+      columns: [table.agentId, table.organizationId],
+      foreignColumns: [agents.id, agents.organizationId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "wallet_cards_policy_agent_organization_fk",
+      columns: [table.agentId, table.organizationId, table.policyVersion],
+      foreignColumns: [agentPolicies.agentId, agentPolicies.organizationId, agentPolicies.version],
+    }).onDelete("restrict"),
+    check("wallet_cards_rail_not_blank_check", sql`length(btrim(${table.rail})) BETWEEN 1 AND 50`),
+    check(
+      "wallet_cards_cardholder_not_blank_check",
+      sql`length(btrim(${table.railCardholderId})) BETWEEN 1 AND 255`,
+    ),
+    check(
+      "wallet_cards_card_not_blank_check",
+      sql`length(btrim(${table.railCardId})) BETWEEN 1 AND 255`,
+    ),
+    check("wallet_cards_last4_check", sql`${table.last4} ~ '^[0-9]{4}$'`),
+    check("wallet_cards_currency_check", sql`${table.currency} ~ '^[A-Z]{3}$'`),
+    check("wallet_cards_policy_version_positive_check", sql`${table.policyVersion} > 0`),
+    check(
+      "wallet_cards_frozen_state_check",
+      sql`(${table.status} = 'frozen' AND ${table.frozenAt} IS NOT NULL)
+        OR (${table.status} <> 'frozen' AND ${table.frozenAt} IS NULL)`,
+    ),
+  ],
+);
+
+export const paymentAuthorizations = pgTable(
+  "payment_authorizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    agentId: uuid("agent_id").notNull(),
+    walletCardId: uuid("wallet_card_id").notNull(),
+    rail: text("rail").notNull(),
+    eventId: text("event_id").notNull(),
+    railAuthorizationId: text("rail_authorization_id").notNull(),
+    amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+    currency: text("currency").notNull(),
+    merchantCategoryCode: text("merchant_category_code"),
+    merchantName: text("merchant_name"),
+    mandateId: uuid("mandate_id"),
+    decision: paymentDecision("decision").notNull(),
+    status: paymentAuthorizationStatus("status").notNull(),
+    reasonCode: text("reason_code").notNull(),
+    reason: text("reason").notNull(),
+    policyVersion: integer("policy_version"),
+    latencyMs: integer("latency_ms").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }).notNull(),
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("payment_authorizations_rail_event_key").on(table.rail, table.eventId),
+    unique("payment_authorizations_rail_authorization_key").on(
+      table.rail,
+      table.railAuthorizationId,
+    ),
+    index("payment_authorizations_spend_idx").on(
+      table.organizationId,
+      table.agentId,
+      table.decidedAt,
+    ),
+    foreignKey({
+      name: "payment_authorizations_card_agent_organization_fk",
+      columns: [table.walletCardId, table.agentId, table.organizationId],
+      foreignColumns: [walletCards.id, walletCards.agentId, walletCards.organizationId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "payment_authorizations_agent_organization_fk",
+      columns: [table.agentId, table.organizationId],
+      foreignColumns: [agents.id, agents.organizationId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "payment_authorizations_mandate_agent_organization_fk",
+      columns: [table.mandateId, table.agentId, table.organizationId],
+      foreignColumns: [mandates.id, mandates.agentId, mandates.organizationId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "payment_authorizations_policy_agent_organization_fk",
+      columns: [table.agentId, table.organizationId, table.policyVersion],
+      foreignColumns: [agentPolicies.agentId, agentPolicies.organizationId, agentPolicies.version],
+    }).onDelete("restrict"),
+    check(
+      "payment_authorizations_event_not_blank_check",
+      sql`length(btrim(${table.eventId})) BETWEEN 1 AND 255`,
+    ),
+    check(
+      "payment_authorizations_authorization_not_blank_check",
+      sql`length(btrim(${table.railAuthorizationId})) BETWEEN 1 AND 255`,
+    ),
+    check(
+      "payment_authorizations_amount_safe_integer_check",
+      sql`${table.amountCents} > 0 AND ${table.amountCents} <= 9007199254740991`,
+    ),
+    check("payment_authorizations_currency_check", sql`${table.currency} ~ '^[A-Z]{3}$'`),
+    check(
+      "payment_authorizations_mcc_format_check",
+      sql`${table.merchantCategoryCode} IS NULL OR ${table.merchantCategoryCode} ~ '^[0-9]{4}$'`,
+    ),
+    check(
+      "payment_authorizations_reason_fields_check",
+      sql`length(btrim(${table.reasonCode})) BETWEEN 1 AND 100
+        AND length(btrim(${table.reason})) BETWEEN 1 AND 1000`,
+    ),
+    check(
+      "payment_authorizations_decision_status_check",
+      sql`(${table.decision} = 'allow' AND ${table.status} = 'approved')
+        OR (${table.decision} = 'deny' AND ${table.status} IN ('pending', 'declined', 'reversed'))`,
+    ),
+    check("payment_authorizations_latency_nonnegative_check", sql`${table.latencyMs} >= 0`),
+    check(
+      "payment_authorizations_timing_check",
+      sql`${table.decidedAt} >= ${table.receivedAt}
+        AND (${table.reversedAt} IS NULL OR ${table.reversedAt} >= ${table.decidedAt})`,
+    ),
+  ],
+);
 export const pendingApprovals = pgTable(
   "pending_approvals",
   {
@@ -732,6 +1014,9 @@ export const schema = {
   agentKeys,
   agentPolicies,
   gatewayRequests,
+  mandates,
+  walletCards,
+  paymentAuthorizations,
   pendingApprovals,
   agentKeyEnrollments,
   telegramLinks,
@@ -745,6 +1030,9 @@ export type AgentRow = typeof agents.$inferSelect;
 export type AgentKeyRow = typeof agentKeys.$inferSelect;
 export type AgentPolicyRow = typeof agentPolicies.$inferSelect;
 export type GatewayRequestRow = typeof gatewayRequests.$inferSelect;
+export type MandateRow = typeof mandates.$inferSelect;
+export type WalletCardRow = typeof walletCards.$inferSelect;
+export type PaymentAuthorizationRow = typeof paymentAuthorizations.$inferSelect;
 export type PendingApprovalRow = typeof pendingApprovals.$inferSelect;
 export type AgentKeyEnrollmentRow = typeof agentKeyEnrollments.$inferSelect;
 export type TelegramLinkRow = typeof telegramLinks.$inferSelect;
