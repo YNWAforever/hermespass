@@ -11,11 +11,10 @@ import {
   type AgentRow,
   type PublicJwk,
 } from "@/db/schema";
-import { decryptPrivateJwk, encryptPrivateJwk, buildAad } from "@/lib/crypto/envelope";
+import { buildAad, decryptPrivateJwk } from "@/lib/crypto/envelope";
 import { hermesKek, issuerOrigin, keyEnvironment } from "@/lib/env";
 import { withPublicDatabase } from "@/lib/db";
 import { agentDidForOrigin, didWebForOrigin } from "@/lib/identity/did";
-import { generateEd25519KeyPair } from "@/lib/identity/keys";
 import {
   buildPassportCredential,
   CredentialTemporalError,
@@ -81,6 +80,7 @@ function dtoSelection() {
     organizationSlug: organizations.slug,
     publicJwk: agentKeys.publicJwk,
     keyThumbprint: agentKeys.thumbprint,
+    keyCustody: agentKeys.custody,
   };
 }
 
@@ -90,6 +90,7 @@ type AgentQueryRow = {
   organizationSlug: string;
   publicJwk: PublicJwk | null;
   keyThumbprint: string | null;
+  keyCustody: "legacy_encrypted" | "external" | null;
 };
 
 function mapRow(value: AgentQueryRow): AgentDto {
@@ -99,6 +100,7 @@ function mapRow(value: AgentQueryRow): AgentDto {
     organizationSlug: value.organizationSlug,
     publicJwk: value.publicJwk,
     thumbprint: value.keyThumbprint,
+    custody: value.keyCustody,
   });
 }
 
@@ -128,14 +130,12 @@ export async function issueAgent(actor: Actor, input: unknown): Promise<AgentDto
   const now = new Date();
   const expiresAt = oneCalendarYearLater(now);
   const agentId = randomUUID();
-  const keyId = randomUUID();
   const origin = issuerOrigin();
   const issuerDid = didWebForOrigin(origin);
   const slugBase = slugify(parsed.name);
   const slug = `${slugBase}-${agentId.slice(0, 8)}`;
   const did = agentDidForOrigin(origin, slug);
   const credentialId = `urn:uuid:${randomUUID()}`;
-  const agentPair = await generateEd25519KeyPair();
   const kek = hermesKek();
   const environment = keyEnvironment();
 
@@ -164,17 +164,6 @@ export async function issueAgent(actor: Actor, input: unknown): Promise<AgentDto
         tenant: "platform",
         entity: "issuer",
         keyId: issuerRow.keyFragment,
-      }),
-    );
-    const encryptedAgentKey = await encryptPrivateJwk(
-      agentPair.privateJwk,
-      kek,
-      buildAad({
-        environment,
-        purpose: "agent-control",
-        tenant: actor.organizationId,
-        entity: agentId,
-        keyId,
       }),
     );
     const credential = buildPassportCredential({
@@ -216,20 +205,6 @@ export async function issueAgent(actor: Actor, input: unknown): Promise<AgentDto
       issuedAt: now,
       expiresAt,
       createdBy: actor.userId,
-    });
-    await tx.insert(agentKeys).values({
-      id: keyId,
-      agentId,
-      organizationId: actor.organizationId,
-      keyFragment: "agent-1",
-      publicJwk: agentPair.publicJwk as PublicJwk,
-      thumbprint: agentPair.thumbprint,
-      ciphertext: Buffer.from(encryptedAgentKey.ciphertext),
-      iv: Buffer.from(encryptedAgentKey.iv),
-      wrappedDek: Buffer.from(encryptedAgentKey.wrappedDek),
-      kekVersion: encryptedAgentKey.kekVersion,
-      encryptionAlgorithm: encryptedAgentKey.algorithm,
-      status: "active",
     });
     await tx.insert(agentAuditLogs).values({
       organizationId: actor.organizationId,

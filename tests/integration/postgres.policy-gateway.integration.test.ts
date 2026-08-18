@@ -2157,4 +2157,248 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
     expect(rows.rows).toEqual([{ count: 5 }]);
     expect(verification.rows).toEqual([{ checked: "5", valid: true }]);
   });
+
+  it("supports one public transaction for BYOK rotation, verified claim, and audit attribution", async () => {
+    const agentId = await insertAgent(
+      pool,
+      fixtures.organizationId,
+      `task3-enrollment-${suffix()}`,
+    );
+    const previousKeyId = await insertExternalKey(
+      pool,
+      agentId,
+      fixtures.organizationId,
+      `task3-old-key-${suffix()}`,
+    );
+    const tokenHash = Buffer.alloc(32, 71);
+    await withAppUser(pool, fixtures.adminId, (client) =>
+      client.query("SELECT * FROM public.hermes_create_agent_key_enrollment($1, $2, $3)", [
+        fixtures.organizationId,
+        agentId,
+        tokenHash,
+      ]),
+    );
+
+    const enrolled = await withAppTransaction(
+      pool,
+      async () => undefined,
+      async (client) => {
+        const consumed = await client.query<{
+          agent_id: string;
+          key_id: string;
+          organization_id: string;
+        }>(
+          `SELECT * FROM public.hermes_consume_agent_key_enrollment(
+             $1, $2, $3::jsonb, $4
+           )`,
+          [
+            tokenHash,
+            "key-task3-thumbprint",
+            JSON.stringify({
+              kty: "OKP",
+              crv: "Ed25519",
+              x: Buffer.alloc(32, 72).toString("base64url"),
+            }),
+            "task3-thumbprint",
+          ],
+        );
+        const current = consumed.rows[0]!;
+        await client.query("SELECT public.hermes_set_verified_agent_claim($1, $2, $3)", [
+          current.agent_id,
+          current.organization_id,
+          current.key_id,
+        ]);
+        await client.query(
+          `INSERT INTO public.agent_audit_logs (
+             organization_id, agent_id, actor_type, actor_id, action, summary, payload
+           ) VALUES (
+             $1::uuid, $2::uuid, 'agent', ($2::uuid)::text,
+             'agent.key.enrolled', 'External Ed25519 key enrolled',
+             jsonb_build_object('keyId', $3::text, 'thumbprint', $4::text)
+           )`,
+          [current.organization_id, current.agent_id, current.key_id, "task3-thumbprint"],
+        );
+        return current;
+      },
+    );
+
+    const [keyHistory, audit, verification] = await Promise.all([
+      pool.query<{
+        ciphertext_absent: boolean;
+        custody: string;
+        id: string;
+        public_jwk: Record<string, unknown>;
+        status: string;
+      }>(
+        `SELECT id, status::text, custody::text, public_jwk,
+                ciphertext IS NULL AND iv IS NULL AND wrapped_dek IS NULL
+                  AND kek_version IS NULL AND encryption_algorithm IS NULL
+                  AS ciphertext_absent
+         FROM public.agent_keys WHERE agent_id = $1 ORDER BY created_at`,
+        [agentId],
+      ),
+      pool.query<{ action: string; actor_id: string; actor_type: string }>(
+        `SELECT action, actor_type, actor_id FROM public.agent_audit_logs
+         WHERE organization_id = $1 AND agent_id = $2 AND action = 'agent.key.enrolled'`,
+        [fixtures.organizationId, agentId],
+      ),
+      withAppUser(pool, fixtures.adminId, (client) =>
+        client.query<{ valid: boolean }>("SELECT valid FROM public.hermes_verify_audit_chain($1)", [
+          fixtures.organizationId,
+        ]),
+      ),
+    ]);
+
+    expect(keyHistory.rows).toHaveLength(2);
+    expect(keyHistory.rows.find(({ id }) => id === previousKeyId)).toMatchObject({
+      status: "revoked",
+    });
+    expect(keyHistory.rows.find(({ id }) => id === enrolled.key_id)).toMatchObject({
+      ciphertext_absent: true,
+      custody: "external",
+      status: "active",
+    });
+    expect(audit.rows).toEqual([
+      { action: "agent.key.enrolled", actor_id: agentId, actor_type: "agent" },
+    ]);
+    expect(verification.rows).toEqual([{ valid: true }]);
+
+    await expectSqlState(
+      () =>
+        withAppTransaction(
+          pool,
+          async () => undefined,
+          (client) =>
+            client.query(
+              "SELECT * FROM public.hermes_consume_agent_key_enrollment($1, 'replay', '{}'::jsonb, 'replay')",
+              [tokenHash],
+            ),
+        ),
+      "P0002",
+    );
+  });
+
+  it("supports locked immutable policy versioning, safe member snapshots, and audit events", async () => {
+    const agentId = await insertAgent(pool, fixtures.organizationId, `task3-policy-${suffix()}`);
+
+    await withAppUser(pool, fixtures.adminId, async (client) => {
+      await client.query("SELECT public.hermes_lock_policy_version($1, $2)", [
+        agentId,
+        fixtures.organizationId,
+      ]);
+      const next = await client.query<{ version: number }>(
+        `SELECT coalesce(max(version), 0)::int + 1 AS version
+         FROM public.agent_policies WHERE agent_id = $1 AND organization_id = $2`,
+        [agentId, fixtures.organizationId],
+      );
+      expect(next.rows).toEqual([{ version: 1 }]);
+      await insertPolicy(
+        client,
+        fixtures.organizationId,
+        agentId,
+        fixtures.assignedReviewerId,
+        next.rows[0]!.version,
+      );
+      await client.query(
+        `INSERT INTO public.agent_audit_logs (
+           organization_id, agent_id, actor_type, actor_id, action, summary, payload
+         ) VALUES ($1, $2, 'user', $3, 'policy.created', 'Policy version created',
+           jsonb_build_object('version', $4::int))`,
+        [fixtures.organizationId, agentId, fixtures.adminId, next.rows[0]!.version],
+      );
+    });
+
+    await withAppUser(pool, fixtures.adminId, async (client) => {
+      await client.query("SELECT public.hermes_lock_policy_version($1, $2)", [
+        agentId,
+        fixtures.organizationId,
+      ]);
+      const next = await client.query<{ version: number }>(
+        `SELECT coalesce(max(version), 0)::int + 1 AS version
+         FROM public.agent_policies WHERE agent_id = $1 AND organization_id = $2`,
+        [agentId, fixtures.organizationId],
+      );
+      const supersededAt = new Date();
+      await client.query(
+        `UPDATE public.agent_policies
+         SET is_active = false, superseded_at = $3
+         WHERE agent_id = $1 AND organization_id = $2 AND is_active`,
+        [agentId, fixtures.organizationId, supersededAt],
+      );
+      await client.query(
+        `INSERT INTO public.agent_policies (
+           organization_id, agent_id, version, currency,
+           per_transaction_limit_cents, daily_limit_cents, monthly_limit_cents,
+           approval_threshold_cents, mcc_allowlist, mcc_required,
+           assigned_reviewer_user_id, created_by_user_id
+         ) VALUES (
+           $1, $2, $3, 'HKD', 60000, 120000, 600000, 25000,
+           ARRAY['5411']::text[], true, $4, $5
+         )`,
+        [
+          fixtures.organizationId,
+          agentId,
+          next.rows[0]!.version,
+          fixtures.assignedReviewerId,
+          fixtures.adminId,
+        ],
+      );
+      await client.query(
+        `INSERT INTO public.agent_audit_logs (
+           organization_id, agent_id, actor_type, actor_id, action, summary, payload
+         ) VALUES
+           ($1, $2, 'user', $3, 'policy.superseded', 'Policy version superseded',
+             jsonb_build_object('version', 1, 'nextVersion', $4::int)),
+           ($1, $2, 'user', $3, 'policy.created', 'Policy version created',
+             jsonb_build_object('version', $4::int))`,
+        [fixtures.organizationId, agentId, fixtures.adminId, next.rows[0]!.version],
+      );
+    });
+
+    const [versions, events, adminRoster, viewerRoster] = await Promise.all([
+      pool.query<{ is_active: boolean; superseded: boolean; version: number }>(
+        `SELECT version, is_active, superseded_at IS NOT NULL AS superseded
+         FROM public.agent_policies WHERE agent_id = $1 ORDER BY version`,
+        [agentId],
+      ),
+      pool.query<{ action: string; version: number }>(
+        `SELECT action, (payload->>'version')::int AS version
+         FROM public.agent_audit_logs
+         WHERE agent_id = $1 AND action IN ('policy.created', 'policy.superseded')
+         ORDER BY id`,
+        [agentId],
+      ),
+      withAppUser(pool, fixtures.adminId, (client) =>
+        client.query(
+          `SELECT user_id, name_snapshot, email_snapshot, role::text, true AS active
+           FROM public.org_members WHERE organization_id = $1 ORDER BY user_id`,
+          [fixtures.organizationId],
+        ),
+      ),
+      withAppUser(pool, fixtures.viewerId, (client) =>
+        client.query<{ user_id: string }>(
+          "SELECT user_id FROM public.org_members WHERE organization_id = $1",
+          [fixtures.organizationId],
+        ),
+      ),
+    ]);
+
+    expect(versions.rows).toEqual([
+      { is_active: false, superseded: true, version: 1 },
+      { is_active: true, superseded: false, version: 2 },
+    ]);
+    expect(events.rows).toEqual([
+      { action: "policy.created", version: 1 },
+      { action: "policy.superseded", version: 1 },
+      { action: "policy.created", version: 2 },
+    ]);
+    expect(adminRoster.rows.length).toBeGreaterThan(1);
+    expect(
+      adminRoster.rows.every(
+        (row) =>
+          Object.keys(row).sort().join(",") === "active,email_snapshot,name_snapshot,role,user_id",
+      ),
+    ).toBe(true);
+    expect(viewerRoster.rows).toEqual([{ user_id: fixtures.viewerId }]);
+  });
 });

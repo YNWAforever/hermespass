@@ -6,12 +6,12 @@ import { buildChain, SEED_AGENTS, SEED_EVENTS } from "@/lib/hermes-data";
 import { useAgentFixtureMode } from "@/lib/agents/fixture-context";
 import type { AgentDto } from "@/lib/agents/types";
 
-type ApiError = Error & {
+export type ApiError = Error & {
   code?: string | undefined;
   fieldErrors?: Record<string, string[]> | undefined;
 };
 
-async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+export async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
     ...init,
     headers: { "content-type": "application/json", ...init?.headers },
@@ -37,6 +37,8 @@ const testAgentData = {
     credentialId: `urn:uuid:${agent.slug}`,
     credentialJws: "",
     governanceNotes: null,
+    keyStatus: "active" as const,
+    keyCustody: "legacy_encrypted" as const,
   })) as AgentDto[],
 };
 const testAuditData = {
@@ -104,8 +106,10 @@ export function useIssueAgent() {
           spendCap: input.spendCap,
           issued: issued.toISOString().slice(0, 10),
           expires: expires.toISOString().slice(0, 10),
-          thumbprint: "TEST THUMBPRINT",
-          publicKey: "Ed25519:test",
+          keyStatus: "enrollment_required",
+          keyCustody: null,
+          thumbprint: null,
+          publicKey: null,
           credentialId: `urn:uuid:test-${current.length + 1}`,
           credentialJws: "",
           governanceNotes: input.governanceNotes,
@@ -117,6 +121,40 @@ export function useIssueAgent() {
         method: "POST",
         body: JSON.stringify(input),
       });
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({
+        queryKey: ["agents"],
+        ...(usesFixtureData ? { refetchType: "none" as const } : {}),
+      });
+      void client.invalidateQueries({
+        queryKey: ["audit"],
+        ...(usesFixtureData ? { refetchType: "none" as const } : {}),
+      });
+    },
+  });
+}
+
+export type EnrollmentTokenDto = {
+  token: string;
+  expiresAt: string;
+};
+
+export function useCreateAgentEnrollment() {
+  const client = useQueryClient();
+  const usesFixtureData = useAgentFixtureMode();
+  return useMutation({
+    mutationFn: async (agentId: string) => {
+      if (usesFixtureData) {
+        return {
+          token: "fixture-enrollment-token",
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        } satisfies EnrollmentTokenDto;
+      }
+      return requestJson<EnrollmentTokenDto>(
+        `/api/agents/${encodeURIComponent(agentId)}/enrollment`,
+        { method: "POST" },
+      );
     },
     onSuccess: () => {
       void client.invalidateQueries({

@@ -6,6 +6,10 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { RiskBadge, StatusBadge, VerifiedPill } from "@/components/hermes/badges";
+import {
+  AgentGovernanceControls,
+  AgentKeySummary,
+} from "@/components/hermes/dashboard/agent-governance-controls";
 import { useActor } from "@/components/auth/actor-context";
 import { PageHeader } from "@/components/hermes/page-header";
 import { Button } from "@/components/ui/button";
@@ -163,6 +167,7 @@ function PassportCard({ agent }: { agent: AgentDto }) {
           </dd>
         </div>
       </dl>
+      <AgentKeySummary agent={agent} />
 
       <div className="mt-4 flex flex-wrap gap-1.5">
         {agent.scopes.map((scope) => (
@@ -178,6 +183,7 @@ function PassportCard({ agent }: { agent: AgentDto }) {
       <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
         <VerifiedPill />
         <div className="flex items-center gap-2">
+          <AgentGovernanceControls agent={agent} canMutate={canMutate} />
           {canMutate && agent.status === "active" ? (
             <Button
               variant="ghost"
@@ -226,13 +232,17 @@ function CredentialDialog({ agent }: { agent: AgentDto }) {
             <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
               Public key (Ed25519 multibase)
             </p>
-            <p className="mt-1 truncate font-mono text-xs text-cyan-accent">{agent.publicKey}</p>
+            <p className="mt-1 truncate font-mono text-xs text-cyan-accent">
+              {agent.publicKey ?? "Not enrolled"}
+            </p>
           </div>
           <div className="rounded-lg border border-border bg-background/60 p-3">
             <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
               Key thumbprint (SHA-256)
             </p>
-            <p className="mt-1 font-mono text-xs text-emerald-accent">{agent.thumbprint}</p>
+            <p className="mt-1 font-mono text-xs text-emerald-accent">
+              {agent.thumbprint ?? "Not enrolled"}
+            </p>
           </div>
         </div>
         <pre className="max-h-80 overflow-auto rounded-lg border border-border bg-background/80 p-4 font-mono text-[11px] leading-relaxed text-muted-foreground">
@@ -296,7 +306,7 @@ function IssuePassportDialog() {
       {
         onSuccess: ({ agent }) => {
           toast.success("Passport issued", {
-            description: `${agent.id} — Ed25519 key sealed with envelope encryption.`,
+            description: `${agent.id} — ready for external Ed25519 key enrollment.`,
           });
           setOpen(false);
           setName("");
@@ -325,8 +335,8 @@ function IssuePassportDialog() {
             Issue agent passport
           </DialogTitle>
           <DialogDescription>
-            Generates an Ed25519 key pair, seals the private key, and signs a W3C Verifiable
-            Credential bound to your organisation DID.
+            Signs a W3C Verifiable Credential bound to your organisation DID. Enroll the
+            agent&apos;s externally generated Ed25519 public key after issuance.
           </DialogDescription>
         </DialogHeader>
 

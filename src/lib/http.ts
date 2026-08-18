@@ -70,6 +70,43 @@ export function errorResponse(request: Request, error: unknown): Response {
       { error: { code: message, message: "Agent not found.", requestId: id } },
       { status: 404 },
     );
+  if (message === "AGENT_NOT_ENROLLABLE")
+    return Response.json(
+      {
+        error: {
+          code: message,
+          message: "This agent cannot accept a key enrollment.",
+          requestId: id,
+        },
+      },
+      { status: 409 },
+    );
+  if (message === "AGENT_ENROLLMENT_INVALID")
+    return Response.json(
+      {
+        error: {
+          code: message,
+          message: "The enrollment proof is invalid or unavailable.",
+          requestId: id,
+        },
+      },
+      { status: 400 },
+    );
+  if (message === "POLICY_REVIEWER_INELIGIBLE")
+    return Response.json(
+      {
+        error: {
+          code: message,
+          message: "The assigned reviewer must be a current owner or administrator.",
+          requestId: id,
+        },
+      },
+      { status: 400 },
+    );
+  if (message === "ENROLLMENT_UNAVAILABLE")
+    return jsonError(request, message, "Agent key enrollment is temporarily unavailable.", 503);
+  if (message === "POLICY_UPDATE_FAILED")
+    return jsonError(request, message, "The agent policy could not be updated.", 500);
   if (message === "ISSUER_NOT_CONFIGURED")
     return Response.json(
       {
