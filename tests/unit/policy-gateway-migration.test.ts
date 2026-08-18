@@ -15,7 +15,7 @@ describe("additive Phase 2 policy gateway migration", () => {
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
       entries: Array<{ idx: number; tag: string }>;
     };
-    expect(journal.entries.map(({ idx, tag }) => ({ idx, tag }))).toEqual([
+    expect(journal.entries.slice(0, 3).map(({ idx, tag }) => ({ idx, tag }))).toEqual([
       { idx: 0, tag: "0000_low_human_robot" },
       { idx: 1, tag: "0001_phase1_security_hardening" },
       { idx: 2, tag: "0002_policy_gateway" },

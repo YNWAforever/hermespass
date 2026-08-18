@@ -65,6 +65,13 @@ export function errorResponse(request: Request, error: unknown): Response {
     return jsonError(request, "INVALID_JSON", "The request body must contain valid JSON.", 400);
 
   const message = error instanceof Error ? error.message : "";
+  if (message === "AGENT_AUTH_FAILED")
+    return jsonError(request, message, "Agent authentication failed.", 401);
+  if (message === "NONCE_CONFLICT")
+    return jsonError(request, message, "This nonce is bound to different signed bytes.", 409);
+  if (message === "GATEWAY_UNAVAILABLE")
+    return jsonError(request, message, "The gateway is temporarily unavailable.", 503);
+
   if (message === "AGENT_NOT_FOUND")
     return Response.json(
       { error: { code: message, message: "Agent not found.", requestId: id } },

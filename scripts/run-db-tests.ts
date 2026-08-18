@@ -16,6 +16,8 @@ const processHandle = Bun.spawn(
     "run",
     "tests/integration/postgres.integration.test.ts",
     "tests/integration/postgres.policy-gateway.integration.test.ts",
+    "tests/integration/postgres.gateway-auth.integration.test.ts",
+    "tests/integration/postgres.gateway-store.integration.test.ts",
     "--maxWorkers=1",
     "--fileParallelism=false",
   ],

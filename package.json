@@ -23,7 +23,8 @@
     "test:e2e": "playwright test",
     "test:routes": "playwright test tests/e2e/routes.spec.ts",
     "test:parity": "playwright test tests/e2e/visual-parity.spec.ts",
-    "db:bootstrap-issuer": "bun scripts/bootstrap-issuer.ts"
+    "db:bootstrap-issuer": "bun scripts/bootstrap-issuer.ts",
+    "gateway:decide": "bun scripts/gateway-decide.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

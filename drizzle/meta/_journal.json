@@ -22,6 +22,13 @@
       "when": 1786994449485,
       "tag": "0002_policy_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787023582826,
+      "tag": "0003_gateway_auth_boundary",
+      "breakpoints": true
     }
   ]
 }
