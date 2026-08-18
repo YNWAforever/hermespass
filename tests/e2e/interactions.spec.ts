@@ -66,20 +66,69 @@ test.describe("Next interactions", () => {
       await expect(page.getByText("Parity Agent", { exact: true })).not.toBeVisible();
     });
 
-    test("live gateway polling controls remain interactive without database credentials", async ({
-      page,
-    }) => {
+    test("live gateway polling pauses and resumes deterministic API requests", async ({ page }) => {
+      let activityRequests = 0;
+      let approvalRequests = 0;
+
+      await page.route("**/api/gateway/activity", async (route) => {
+        activityRequests += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              activity: [],
+              aggregates: {
+                actionsToday: 0,
+                pendingHolds: 0,
+                blockedSpendCents: 0,
+                deniedCount: 0,
+                decisionCounts: {
+                  allow: 0,
+                  hold: 0,
+                  deny: 0,
+                },
+                trend: [],
+              },
+            },
+          }),
+        });
+      });
+      await page.route("**/api/approvals", async (route) => {
+        approvalRequests += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              approvals: [],
+            },
+          }),
+        });
+      });
+
       await page.goto(`${NEXT_BASE_URL}/dashboard/approvals`);
+      await expect.poll(() => activityRequests).toBeGreaterThan(0);
+      await expect.poll(() => approvalRequests).toBeGreaterThan(0);
+
       await page.getByRole("button", { name: "Pause stream" }).click();
       await expect(page.getByRole("button", { name: "Resume stream" })).toBeVisible();
+      const pausedActivityRequests = activityRequests;
+      const pausedApprovalRequests = approvalRequests;
+
+      await page.waitForTimeout(3_500);
+      expect(activityRequests).toBe(pausedActivityRequests);
+      expect(approvalRequests).toBe(pausedApprovalRequests);
+
       await page.getByRole("button", { name: "Resume stream" }).click();
       await expect(page.getByRole("button", { name: "Pause stream" })).toBeVisible();
+      await expect
+        .poll(() => activityRequests, { timeout: 5_000 })
+        .toBeGreaterThan(pausedActivityRequests);
+      await expect
+        .poll(() => approvalRequests, { timeout: 5_000 })
+        .toBeGreaterThan(pausedApprovalRequests);
 
-      const liveReadState = page
-        .getByText("Loading live gateway activity…", { exact: true })
-        .or(page.getByText(/^Unable to load gateway activity:/))
-        .first();
-      await expect(liveReadState).toBeVisible();
       await expect(page.getByText(/Refund of HK\$ 820\.00 for Order #9812/i)).toHaveCount(0);
     });
 

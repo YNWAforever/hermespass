@@ -51,7 +51,7 @@ describe("Phase 2 release gates", () => {
 
     expect(workflow).toContain("Neon Phase 2 ephemeral smoke (approval-gated)");
     expect(workflow).toContain("HERMESPASS_NEON_SMOKE == 'true'");
-    expect(workflow).toContain("needs: postgres-integration");
+    expect(workflow).toContain("needs: [postgres-integration, parity]");
     expect(workflow).toContain("DATABASE_URL_TEST: ${{ secrets.HERMESPASS_NEON_SMOKE_URL }}");
     expect(workflow).toContain("bun run test:db:smoke");
     expect(workflow).not.toContain("TELEGRAM_BOT_TOKEN:");
@@ -74,6 +74,7 @@ describe("Phase 2 release gates", () => {
       "delivery retry",
       "approval expiry",
       "audit-chain validity",
+      "Nonproduction provider approval",
       "Push and pull request approval",
       "Production release approval",
     ]) {
