@@ -25,8 +25,10 @@ async function metadataAt(page: Page, url: string) {
   };
 }
 
-test.describe("44-route contract", () => {
-  test("the shared route manifest has exactly 44 unique URLs", () => {
+test.describe("39-public-route and 5-dashboard contract", () => {
+  test("the shared route manifest has exactly 39 public and 5 dashboard URLs", () => {
+    expect(PUBLIC_ROUTES).toHaveLength(39);
+    expect(DASHBOARD_ROUTES).toHaveLength(5);
     expect(ROUTES).toHaveLength(44);
     expect(new Set(ROUTES).size).toBe(44);
   });

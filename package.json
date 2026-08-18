@@ -18,6 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "db:check": "drizzle-kit check",
     "test:db": "bun scripts/run-db-tests.ts",
     "test:db:smoke": "bun scripts/run-db-smoke.ts",
     "test:e2e": "playwright test",

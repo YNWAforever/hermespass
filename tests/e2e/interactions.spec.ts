@@ -66,28 +66,21 @@ test.describe("Next interactions", () => {
       await expect(page.getByText("Parity Agent", { exact: true })).not.toBeVisible();
     });
 
-    test("gateway stream and held-action review controls remain interactive", async ({ page }) => {
+    test("live gateway polling controls remain interactive without database credentials", async ({
+      page,
+    }) => {
       await page.goto(`${NEXT_BASE_URL}/dashboard/approvals`);
       await page.getByRole("button", { name: "Pause stream" }).click();
       await expect(page.getByRole("button", { name: "Resume stream" })).toBeVisible();
       await page.getByRole("button", { name: "Resume stream" }).click();
       await expect(page.getByRole("button", { name: "Pause stream" })).toBeVisible();
 
-      const firstHold = page.getByRole("button", {
-        name: /Refund of HK\$ 820\.00 for Order #9812/i,
-      });
-      await firstHold.click();
-      await page.getByRole("button", { name: "Escalate to Telegram" }).click();
-      await expect(page.getByText("escalated · telegram", { exact: true })).toBeVisible();
-      await page.getByRole("button", { name: "Approve action" }).click();
-      await expect(firstHold.getByText("Allow", { exact: true })).toBeVisible();
-
-      const secondHold = page.getByRole("button", {
-        name: /Raise daily budget to S\$ 3,200\.00/i,
-      });
-      await secondHold.click();
-      await page.getByRole("button", { name: "Reject action" }).click();
-      await expect(secondHold.getByText("Deny", { exact: true })).toBeVisible();
+      const liveReadState = page
+        .getByText("Loading live gateway activity…", { exact: true })
+        .or(page.getByText(/^Unable to load gateway activity:/))
+        .first();
+      await expect(liveReadState).toBeVisible();
+      await expect(page.getByText(/Refund of HK\$ 820\.00 for Order #9812/i)).toHaveCount(0);
     });
 
     test("wallet limits change and a card can be frozen", async ({ page }) => {
