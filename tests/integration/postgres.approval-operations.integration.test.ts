@@ -37,6 +37,7 @@ const migrations = [
   "0002_policy_gateway.sql",
   "0003_gateway_auth_boundary.sql",
   "0004_approval_operations.sql",
+  "0005_approval_revalidation.sql",
 ].map((name) => join(process.cwd(), "drizzle", name));
 
 type Fixture = {
@@ -334,6 +335,178 @@ dbTest("PostgreSQL Task 5 approval operations", () => {
       decisionCounts: { allow: 0, hold: 0, deny: 0 },
     });
   });
+
+  it("rechecks authorized HKD spend when sequentially allowing pre-existing holds", async () => {
+    const spendFixture = await seedFixture(pool, 7_001_234_570);
+    const approvalIds: string[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      approvalIds.push(await insertApproval(pool, spendFixture));
+    }
+
+    const store = createPostgresApprovalStore(transactionRunner(pool));
+    const resolutions = [];
+    for (const approvalId of approvalIds) {
+      resolutions.push(
+        await resolveApproval(
+          {
+            approvalId,
+            decision: "allow",
+            source: "web",
+            reason: "Approved after human review.",
+            actorUserId: spendFixture.reviewerId,
+          },
+          store,
+        ),
+      );
+    }
+
+    expect(resolutions.map(({ status, decision }) => ({ status, decision }))).toEqual([
+      { status: "approved", decision: "allow" },
+      { status: "approved", decision: "allow" },
+      { status: "approved", decision: "allow" },
+      { status: "approved", decision: "allow" },
+      { status: "denied", decision: "deny" },
+    ]);
+
+    const stored = await pool.query<{
+      approved_count: string;
+      denied_count: string;
+      authorized_spend_cents: string;
+      final_reason_code: string;
+      final_authorized_at: Date | null;
+      final_authorization_expires_at: Date | null;
+      final_audit_reason_code: string | null;
+    }>(
+      `SELECT
+        count(*) FILTER (WHERE approval.status = 'approved')::text AS approved_count,
+        count(*) FILTER (WHERE approval.status = 'denied')::text AS denied_count,
+        coalesce(sum(request.amount_cents) FILTER (
+          WHERE request.current_decision = 'allow'
+        ), 0)::text AS authorized_spend_cents,
+        max(request.reason_code) FILTER (WHERE approval.id = $2)::text AS final_reason_code,
+        max(request.authorized_at) FILTER (WHERE approval.id = $2) AS final_authorized_at,
+        max(request.authorization_expires_at) FILTER (
+          WHERE approval.id = $2
+        ) AS final_authorization_expires_at,
+        max(audit.payload ->> 'reasonCode') FILTER (
+          WHERE approval.id = $2 AND audit.action = 'approval.resolved'
+        ) AS final_audit_reason_code
+       FROM public.pending_approvals approval
+       JOIN public.gateway_requests request ON request.id = approval.gateway_request_id
+       LEFT JOIN public.agent_audit_logs audit
+         ON audit.agent_id = approval.agent_id
+        AND audit.payload ->> 'approvalId' = approval.id::text
+       WHERE approval.id = ANY($1::uuid[])`,
+      [approvalIds, approvalIds[4]],
+    );
+    expect(stored.rows).toEqual([
+      {
+        approved_count: "4",
+        denied_count: "1",
+        authorized_spend_cents: "100000",
+        final_reason_code: "DAILY_LIMIT_EXCEEDED",
+        final_authorized_at: null,
+        final_authorization_expires_at: null,
+        final_audit_reason_code: "DAILY_LIMIT_EXCEEDED",
+      },
+    ]);
+    await verifyChain(pool, spendFixture);
+  });
+
+  it.each([
+    {
+      invalidation: "revoked passport",
+      telegramId: 7_001_234_571,
+      expectedReasonCode: "PASSPORT_INACTIVE",
+      invalidate: (target: Fixture) =>
+        pool.query("UPDATE public.agents SET status = 'revoked' WHERE id = $1", [target.agentId]),
+    },
+    {
+      invalidation: "expired passport",
+      telegramId: 7_001_234_572,
+      expectedReasonCode: "PASSPORT_EXPIRED",
+      invalidate: (target: Fixture) =>
+        pool.query(
+          "UPDATE public.agents SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1",
+          [target.agentId],
+        ),
+    },
+    {
+      invalidation: "revoked signing key",
+      telegramId: 7_001_234_573,
+      expectedReasonCode: "AGENT_KEY_INACTIVE",
+      invalidate: (target: Fixture) =>
+        pool.query("UPDATE public.agent_keys SET status = 'revoked' WHERE id = $1", [target.keyId]),
+    },
+    {
+      invalidation: "non-external signing key custody",
+      telegramId: 7_001_234_574,
+      expectedReasonCode: "AGENT_KEY_INACTIVE",
+      invalidate: (target: Fixture) =>
+        pool.query(
+          `UPDATE public.agent_keys
+           SET custody = 'legacy_encrypted', ciphertext = '\\x01', iv = '\\x02',
+             wrapped_dek = '\\x03', kek_version = 'v1',
+             encryption_algorithm = 'A256GCM+A256KW'
+           WHERE id = $1`,
+          [target.keyId],
+        ),
+    },
+  ])(
+    "audits a denied hold instead of authorizing after $invalidation",
+    async ({ telegramId, expectedReasonCode, invalidate }) => {
+      const target = await seedFixture(pool, telegramId);
+      const approvalId = await insertApproval(pool, target);
+      await invalidate(target);
+
+      const resolution = await resolveApproval(
+        {
+          approvalId,
+          decision: "allow",
+          source: "web",
+          reason: "The stale hold looked safe to approve.",
+          actorUserId: target.reviewerId,
+        },
+        createPostgresApprovalStore(transactionRunner(pool)),
+      );
+      expect(resolution).toMatchObject({ status: "denied", decision: "deny" });
+
+      const stored = await pool.query<{
+        status: string;
+        resolution: string;
+        current_decision: string;
+        reason_code: string;
+        authorized_at: Date | null;
+        authorization_expires_at: Date | null;
+        audit_reason_code: string | null;
+      }>(
+        `SELECT approval.status::text, approval.resolution::text,
+          request.current_decision::text, request.reason_code,
+          request.authorized_at, request.authorization_expires_at,
+          audit.payload ->> 'reasonCode' AS audit_reason_code
+         FROM public.pending_approvals approval
+         JOIN public.gateway_requests request ON request.id = approval.gateway_request_id
+         LEFT JOIN public.agent_audit_logs audit
+           ON audit.agent_id = approval.agent_id
+          AND audit.action = 'approval.resolved'
+          AND audit.payload ->> 'approvalId' = approval.id::text
+         WHERE approval.id = $1`,
+        [approvalId],
+      );
+      expect(stored.rows).toEqual([
+        {
+          status: "denied",
+          resolution: "deny",
+          current_decision: "deny",
+          reason_code: expectedReasonCode,
+          authorized_at: null,
+          authorization_expires_at: null,
+          audit_reason_code: expectedReasonCode,
+        },
+      ]);
+      await verifyChain(pool, target);
+    },
+  );
 
   it("allows exactly one web/Telegram resolution winner with one safe audit event", async () => {
     const approvalId = await insertApproval(pool, fixture);

@@ -3,23 +3,39 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const migrationUrl = join(process.cwd(), "drizzle", "0004_approval_operations.sql");
+const approvalOperationsMigrationUrl = join(
+  process.cwd(),
+  "drizzle",
+  "0004_approval_operations.sql",
+);
+const migrationUrl = join(process.cwd(), "drizzle", "0005_approval_revalidation.sql");
 const journalUrl = join(process.cwd(), "drizzle", "meta", "_journal.json");
+const priorSnapshotUrl = join(process.cwd(), "drizzle", "meta", "0004_snapshot.json");
+const snapshotUrl = join(process.cwd(), "drizzle", "meta", "0005_snapshot.json");
 
-describe("Task 5 approval operations migration", () => {
-  it("registers the additive approval operations migration", async () => {
+describe("approval operations migrations", () => {
+  it("appends approval revalidation after approval operations", async () => {
     const journal = JSON.parse(await readFile(journalUrl, "utf8")) as {
       entries: Array<{ idx: number; tag: string }>;
     };
+    const priorSnapshot = JSON.parse(await readFile(priorSnapshotUrl, "utf8")) as {
+      id: string;
+    };
+    const snapshot = JSON.parse(await readFile(snapshotUrl, "utf8")) as {
+      id: string;
+      prevId: string;
+    };
 
-    expect(journal.entries.at(-1)).toMatchObject({
-      idx: 4,
-      tag: "0004_approval_operations",
-    });
+    expect(journal.entries.slice(-2)).toEqual([
+      expect.objectContaining({ idx: 4, tag: "0004_approval_operations" }),
+      expect.objectContaining({ idx: 5, tag: "0005_approval_revalidation" }),
+    ]);
+    expect(snapshot.id).not.toBe(priorSnapshot.id);
+    expect(snapshot.prevId).toBe(priorSnapshot.id);
   });
 
   it("keeps approval resolution atomic and appends a safe hash-chain audit row", async () => {
-    const sql = await readFile(migrationUrl, "utf8");
+    const sql = await readFile(approvalOperationsMigrationUrl, "utf8");
 
     expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.hermes_resolve_approval\(/);
     expect(sql).toContain("UPDATE public.pending_approvals");
@@ -30,8 +46,30 @@ describe("Task 5 approval operations migration", () => {
     expect(sql).not.toContain("'resolutionReason'");
   });
 
-  it("defines private immutable reviewer identity and durable delivery claims", async () => {
+  it("revalidates lifecycle, custody, and authorized HKD spend under the agent lock", async () => {
     const sql = await readFile(migrationUrl, "utf8");
+
+    expect(sql).toContain("'hermes.agent:' || approval_agent_id::text");
+    expect(sql).toContain("FROM public.agents agent");
+    expect(sql).toContain("FROM public.agent_keys key");
+    expect(sql).toContain("key.id = approval_record.key_id");
+    expect(sql).toContain("key_record.custody <> 'external'");
+    expect(sql).toContain("FROM public.agent_policies policy");
+    expect(sql).toContain("policy.is_active");
+    expect(sql).toContain("request.authorized_at >= month_start");
+    expect(sql).toContain("DAILY_LIMIT_EXCEEDED");
+    expect(sql).toContain("MONTHLY_LIMIT_EXCEEDED");
+    expect(sql).toContain("final_resolution");
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.hermes_resolve_approval\(uuid, public\.gateway_decision, public\.approval_resolution_source, text, bigint, bigint\) FROM PUBLIC/,
+    );
+    expect(sql).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.hermes_resolve_approval\(uuid, public\.gateway_decision, public\.approval_resolution_source, text, bigint, bigint\) TO hermes_app/,
+    );
+  });
+
+  it("defines private immutable reviewer identity and durable delivery claims", async () => {
+    const sql = await readFile(approvalOperationsMigrationUrl, "utf8");
 
     expect(sql).toContain("hermes_telegram_reviewer_identity");
     expect(sql).toContain("link.telegram_user_id = p_telegram_user_id");
@@ -53,7 +91,7 @@ describe("Task 5 approval operations migration", () => {
   });
 
   it("uses a non-blocking transaction advisory lock and exposes only executable routines", async () => {
-    const sql = await readFile(migrationUrl, "utf8");
+    const sql = await readFile(approvalOperationsMigrationUrl, "utf8");
 
     expect(sql).toContain("pg_try_advisory_xact_lock");
     expect(sql).toContain("hermes_expired_approval_ids");

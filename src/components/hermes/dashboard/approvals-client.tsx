@@ -131,7 +131,7 @@ export function ApprovalsClient() {
             <p className="mt-3 font-mono text-2xl font-semibold">{counts[decision]}</p>
             <p className="text-xs text-muted-foreground">
               {decision === "allow"
-                ? "auto-executed calls in window"
+                ? "authorized calls in window"
                 : decision === "hold"
                   ? "awaiting human mandate"
                   : "blocked by policy engine"}
