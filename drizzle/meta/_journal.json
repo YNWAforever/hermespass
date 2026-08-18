@@ -57,6 +57,13 @@
       "when": 1787090000000,
       "tag": "0007_payment_authorization_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787091033814,
+      "tag": "0008_mandate_verified_agent_boundary",
+      "breakpoints": true
     }
   ]
 }

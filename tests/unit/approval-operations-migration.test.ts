@@ -26,11 +26,12 @@ describe("approval operations migrations", () => {
       prevId: string;
     };
 
-    expect(journal.entries.slice(-4)).toEqual([
+    expect(journal.entries.slice(-5)).toEqual([
       expect.objectContaining({ idx: 4, tag: "0004_approval_operations" }),
       expect.objectContaining({ idx: 5, tag: "0005_approval_revalidation" }),
       expect.objectContaining({ idx: 6, tag: "0006_scoped_payments" }),
       expect.objectContaining({ idx: 7, tag: "0007_payment_authorization_hardening" }),
+      expect.objectContaining({ idx: 8, tag: "0008_mandate_verified_agent_boundary" }),
     ]);
     expect(snapshot.id).not.toBe(priorSnapshot.id);
     expect(snapshot.prevId).toBe(priorSnapshot.id);

@@ -35,6 +35,7 @@ const migrations = [
   "0005_approval_revalidation.sql",
   "0006_scoped_payments.sql",
   "0007_payment_authorization_hardening.sql",
+  "0008_mandate_verified_agent_boundary.sql",
 ].map((name) => join(process.cwd(), "drizzle", name));
 
 async function resetAndMigrate(pool: Pool): Promise<void> {
@@ -147,6 +148,7 @@ dbTest("PostgreSQL mandate issuance and revocation", () => {
   };
   let actor: Actor;
   let mandateRunner: MandateTransactionRunner;
+  let publicMandateRunner: MandateTransactionRunner;
   let issueMandate: typeof import("@/lib/payments/mandate-service").issueMandate;
   let listMandates: typeof import("@/lib/payments/mandate-service").listMandates;
   let revokeMandate: typeof import("@/lib/payments/mandate-service").revokeMandate;
@@ -225,6 +227,15 @@ dbTest("PostgreSQL mandate issuance and revocation", () => {
         await transaction.execute(sql`select set_config('hermes.agent_verified', '0', true)`);
         return callback(transaction as unknown as Transaction);
       }) as Promise<T>;
+    publicMandateRunner = async <T>(
+      callback: (transaction: Transaction) => Promise<T>,
+    ): Promise<T> =>
+      database.transaction(async (transaction) => {
+        await transaction.execute(sql.raw("SET LOCAL ROLE hermes_app"));
+        await transaction.execute(sql`select set_config('hermes.user_id', '', true)`);
+        await transaction.execute(sql`select set_config('hermes.agent_verified', '0', true)`);
+        return callback(transaction as unknown as Transaction);
+      }) as Promise<T>;
   }, 120_000);
 
   afterAll(async () => {
@@ -245,6 +256,16 @@ dbTest("PostgreSQL mandate issuance and revocation", () => {
     });
   });
 
+  it("issues through the public signature-authenticated path without a user claim", async () => {
+    const signed = buildSignedMandate({ ...fixture, nonce: crypto.randomUUID() });
+    const result = await issueMandate(signed, undefined, publicMandateRunner);
+    expect(result.replayed).toBe(false);
+    expect(result.mandate).toMatchObject({
+      id: signed.body.mandateId,
+      agentDid: fixture.agentDid,
+      status: "active",
+    });
+  });
   it("rejects a parent from another agent or tenant and keeps organization listing isolated", async () => {
     const signed = buildSignedMandate({
       ...fixture,
@@ -270,6 +291,34 @@ dbTest("PostgreSQL mandate issuance and revocation", () => {
     expect(replay).toMatchObject({ id: issued.mandate.id, status: "revoked" });
   });
 
+  it("serializes concurrent revocation with one state transition and one audit event", async () => {
+    const signed = buildSignedMandate({ ...fixture, nonce: crypto.randomUUID() });
+    const issued = await issueMandate(signed, actor, mandateRunner);
+    const [first, second] = await Promise.all([
+      revokeMandate(actor, issued.mandate.id, mandateRunner),
+      revokeMandate(actor, issued.mandate.id, mandateRunner),
+    ]);
+    expect(first.status).toBe("revoked");
+    expect(second.status).toBe("revoked");
+    const audit = await pool.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM public.agent_audit_logs WHERE organization_id = $1 AND action = 'mandate.revoked' AND payload ->> 'mandateId' = $2",
+      [fixture.organizationId, issued.mandate.id],
+    );
+    expect(audit.rows[0]?.count).toBe("1");
+  });
+
+  it("keeps the mandate issue and revoke events in a valid audit chain", async () => {
+    const signed = buildSignedMandate({ ...fixture, nonce: crypto.randomUUID() });
+    const issued = await issueMandate(signed, actor, mandateRunner);
+    await revokeMandate(actor, issued.mandate.id, mandateRunner);
+    const verification = await appTransaction(pool, fixture.ownerId, (client) =>
+      client.query<{ valid: boolean; checked: string }>(
+        "SELECT valid, checked::text FROM public.hermes_verify_audit_chain($1)",
+        [fixture.organizationId],
+      ),
+    );
+    expect(verification.rows[0]).toMatchObject({ valid: true });
+  });
   it("keeps the mandate table forced-RLS and tenant constrained", async () => {
     const flags = await pool.query<{ relrowsecurity: boolean; relforcerowsecurity: boolean }>(
       "SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = 'public.mandates'::regclass",

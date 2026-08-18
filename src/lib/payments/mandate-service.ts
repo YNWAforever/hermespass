@@ -448,7 +448,17 @@ export async function revokeMandate(
     const current = rows[0];
     if (!current) throw new MandateServiceError("MANDATE_NOT_FOUND");
     await lockAgentForUser(transaction, current.agentId);
-    if (current.status !== "active") return safeDto(current);
+
+    // Re-read after the shared agent lock. A concurrent revoke may have
+    // changed the row while this transaction was waiting.
+    const lockedRows = await transaction
+      .select()
+      .from(mandates)
+      .where(and(eq(mandates.id, parsedId), eq(mandates.organizationId, actor.organizationId)))
+      .limit(1);
+    const locked = lockedRows[0];
+    if (!locked) throw new MandateServiceError("MANDATE_NOT_FOUND");
+    if (locked.status !== "active") return safeDto(locked);
 
     const now = await databaseTime(transaction);
     const updated = await transaction
@@ -462,7 +472,18 @@ export async function revokeMandate(
         ),
       )
       .returning();
-    const revoked = updated[0] ?? current;
+    const revoked = updated[0];
+    if (!revoked) {
+      const afterRows = await transaction
+        .select()
+        .from(mandates)
+        .where(and(eq(mandates.id, parsedId), eq(mandates.organizationId, actor.organizationId)))
+        .limit(1);
+      const after = afterRows[0];
+      if (!after) throw new MandateServiceError("MANDATE_NOT_FOUND");
+      return safeDto(after);
+    }
+
     await transaction.insert(agentAuditLogs).values({
       organizationId: actor.organizationId,
       agentId: revoked.agentId,
