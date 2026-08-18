@@ -8,7 +8,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { schema } from "@/db/schema";
 import type { Transaction } from "@/lib/db";
-import { readPaymentSpendTotals, recordPaymentAuthorization } from "@/lib/payments/postgres-store";
+import {
+  readPaymentSpendTotals,
+  recordPaymentAuthorization,
+  type PaymentTransactionRunner,
+} from "@/lib/payments/postgres-store";
 
 const databaseUrl = process.env["DATABASE_URL_TEST"];
 const required = process.env["DB_INTEGRATION_REQUIRED"] === "1";
@@ -30,6 +34,7 @@ const migrationNames = [
   "0004_approval_operations.sql",
   "0005_approval_revalidation.sql",
   "0006_scoped_payments.sql",
+  "0007_payment_authorization_hardening.sql",
 ];
 
 async function resetAndMigrate(pool: Pool): Promise<void> {
@@ -175,14 +180,13 @@ dbTest("payment schema and store", () => {
     await pool?.end();
   });
 
-  function runner() {
+  function runner(userId = fixture.ownerId): PaymentTransactionRunner {
     const database = drizzle(pool, { schema });
-    return async <T>(callback: (transaction: Transaction) => Promise<T>): Promise<T> =>
+    return async <T>(callback: (transaction: Transaction) => Promise<T>) =>
       database.transaction(async (transaction) => {
         await transaction.execute(sql.raw("SET LOCAL ROLE hermes_app"));
-        await transaction.execute(
-          sql` select set_config('hermes.user_id', ${fixture.ownerId}, true) `,
-        );
+        await transaction.execute(sql` select set_config('hermes.user_id', ${userId}, true) `);
+        await transaction.execute(sql` select set_config('hermes.agent_verified', '0', true) `);
         return callback(transaction as unknown as Transaction);
       });
   }
@@ -237,12 +241,37 @@ dbTest("payment schema and store", () => {
   });
 
   it("deduplicates a rail event and rejects changed bytes", async () => {
-    const first = await recordPaymentAuthorization(payment(4000, "event-1"), runner());
-    const replay = await recordPaymentAuthorization(payment(4000, "event-1"), runner());
+    const sample = payment(4000, "event-1");
+    const first = await recordPaymentAuthorization(sample, runner());
+    const replay = await recordPaymentAuthorization(sample, runner());
     expect(replay.id).toBe(first.id);
     await expect(
       recordPaymentAuthorization(payment(999, "event-1"), runner()),
     ).rejects.toMatchObject({ code: "23505" });
+    await expect(
+      recordPaymentAuthorization(
+        { ...payment(4000, "event-1"), railAuthorizationId: "different-auth" },
+        runner(),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+    await expect(
+      recordPaymentAuthorization(
+        { ...payment(4000, "event-1"), reason: "Different reason" },
+        runner(),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+  });
+
+  it("rejects cross-tenant spend aggregate reads", async () => {
+    await expect(
+      readPaymentSpendTotals(
+        fixture.agentId,
+        fixture.organizationId,
+        new Date("2026-08-18T16:00:00.000Z"),
+        new Date("2026-08-01T16:00:00.000Z"),
+        runner("payment-not-a-member"),
+      ),
+    ).rejects.toMatchObject({ cause: { code: "42501" } });
   });
 
   it("sums approved payment spend in the supplied Hong Kong windows", async () => {
