@@ -7,11 +7,12 @@ describe("payment policy adapter", () => {
     expect(
       toPaymentPolicyAction({
         agentDid: "did:web:hermespass.asia:agent:demo-agent",
+        keyId: "fbb9a6a1-2d6b-4f4c-8c29-6c7c4f0a54dd",
         amountCents: 1200,
         currency: "HKD",
         merchantCategoryCode: "5734",
         merchantName: "AWS",
-        nonce: "payment-1",
+        nonce: "7d5b9d85-f7c8-4b94-9610-1a5c4e6a8d60",
         timestamp: "2026-08-18T01:00:00.000Z",
       }),
     ).toMatchObject({
@@ -22,6 +23,27 @@ describe("payment policy adapter", () => {
     });
   });
 
+  it.each([
+    ["missing key id", { keyId: undefined }, "PAYMENT_KEY_ID_REQUIRED"],
+    ["invalid key id", { keyId: "not-a-uuid" }, "PAYMENT_KEY_ID_INVALID"],
+    ["invalid nonce", { nonce: "payment-1" }, "PAYMENT_ACTION_INVALID"],
+    ["invalid agent DID", { agentDid: "agent-1" }, "PAYMENT_ACTION_INVALID"],
+    ["oversized justification", { justification: "x".repeat(1001) }, "PAYMENT_ACTION_INVALID"],
+  ])("rejects %s before emitting an invalid action", (_label, override, code) => {
+    expect(() =>
+      toPaymentPolicyAction({
+        agentDid: "did:web:hermespass.asia:agent:demo-agent",
+        keyId: "fbb9a6a1-2d6b-4f4c-8c29-6c7c4f0a54dd",
+        amountCents: 1200,
+        currency: "HKD",
+        merchantCategoryCode: "5734",
+        merchantName: "AWS",
+        nonce: "7d5b9d85-f7c8-4b94-9610-1a5c4e6a8d60",
+        timestamp: "2026-08-18T01:00:00.000Z",
+        ...override,
+      } as import("@/lib/payments/types").PaymentPolicyActionInput),
+    ).toThrowError(expect.objectContaining({ code }));
+  });
   it("turns policy hold into synchronous preauthorization denial", () => {
     expect(
       paymentDecisionFromPolicy({

@@ -99,6 +99,10 @@ export function verifyMandate(
   key: MandateVerificationKey,
   now: Date,
 ): { valid: true } | { valid: false; reasonCode: string } {
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
+    return { valid: false, reasonCode: "MANDATE_SIGNATURE_INVALID" };
+  }
+
   if (key.custody !== "external" || key.status !== "active") {
     return { valid: false, reasonCode: "MANDATE_KEY_INACTIVE" };
   }
@@ -190,12 +194,7 @@ export function mandateMatchesCharge(
       reason: MATCH_REASONS.amount,
     };
   }
-  if (
-    constraints.merchant !== null &&
-    charge.merchantName !== null &&
-    charge.merchantName !== undefined &&
-    charge.merchantName !== constraints.merchant
-  ) {
+  if (constraints.merchant !== null && charge.merchantName !== constraints.merchant) {
     return {
       matches: false,
       reasonCode: "MANDATE_MERCHANT_MISMATCH",

@@ -55,7 +55,7 @@ export type MandateMatchResult =
 
 export type PaymentPolicyActionInput = {
   agentDid: string;
-  keyId?: string;
+  keyId: string;
   amountCents: number;
   currency: "HKD";
   merchantCategoryCode?: string | null;

@@ -109,7 +109,7 @@ describe("signed mandates", () => {
     ],
     [
       "mcc",
-      { amountCents: 1000, currency: "HKD", merchantCategoryCode: "7995" },
+      { amountCents: 1000, currency: "HKD", merchantName: "AWS", merchantCategoryCode: "7995" },
       "MANDATE_MCC_MISMATCH",
     ],
     ["currency", { amountCents: 1000, currency: "USD" }, "RAIL_CURRENCY_UNSUPPORTED"],
@@ -122,6 +122,24 @@ describe("signed mandates", () => {
     ).toMatchObject({ matches: false, reasonCode });
   });
 
+  it("rejects a missing merchant when the mandate binds a merchant", () => {
+    expect(
+      mandateMatchesCharge(BODY.constraints, {
+        amountCents: 1000,
+        currency: "HKD",
+        merchantName: null,
+        merchantCategoryCode: "5734",
+        at: new Date("2026-08-19T00:00:00Z"),
+      }),
+    ).toMatchObject({ matches: false, reasonCode: "MANDATE_MERCHANT_MISMATCH" });
+  });
+
+  it("fails closed when the verification clock is invalid", () => {
+    expect(verifyMandate(signFixture(), fixtureKey(), new Date("invalid"))).toMatchObject({
+      valid: false,
+      reasonCode: "MANDATE_SIGNATURE_INVALID",
+    });
+  });
   it("rejects a consumed one-time mandate", () => {
     expect(
       mandateMatchesCharge(
