@@ -222,7 +222,7 @@ async function insertGatewayRequest(
   nonce: string,
   decision: "allow" | "deny" | "hold" = "hold",
   amountCents: number | string = 12000,
-  currency = "HKD",
+  currency: string | null = "HKD",
 ): Promise<string> {
   const result = await client.query<{ id: string }>(
     `INSERT INTO public.gateway_requests (
@@ -919,6 +919,20 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
         ),
       "23514",
     );
+    await expectSqlState(
+      () =>
+        insertGatewayRequest(
+          pool,
+          fixtures.organizationId,
+          fixtures.agentId,
+          fixtures.externalKeyId,
+          `allow-null-currency-${suffix()}`,
+          "allow",
+          12000,
+          null,
+        ),
+      "23514",
+    );
     await expect(
       insertGatewayRequest(
         pool,
@@ -1167,6 +1181,47 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
       await agentLocker.query("ROLLBACK").catch(() => undefined);
       agentLocker.release();
     }
+
+    const invalidatedAgentId = await insertAgent(
+      pool,
+      fixtures.organizationId,
+      `invalidated-enrollment-agent-${suffix()}`,
+    );
+    await insertExternalKey(
+      pool,
+      invalidatedAgentId,
+      fixtures.organizationId,
+      `invalidated-enrollment-key-${suffix()}`,
+    );
+    const invalidatedEnrollmentHash = Buffer.alloc(32, 22);
+    await withAppUser(pool, fixtures.adminId, (client) =>
+      client.query("SELECT * FROM public.hermes_create_agent_key_enrollment($1, $2, $3)", [
+        fixtures.organizationId,
+        invalidatedAgentId,
+        invalidatedEnrollmentHash,
+      ]),
+    );
+    await pool.query(
+      `UPDATE public.agents
+       SET status = 'revoked', revoked_at = clock_timestamp(), revoked_by = $2
+       WHERE id = $1`,
+      [invalidatedAgentId, fixtures.ownerId],
+    );
+    await expectSqlState(
+      () =>
+        withAppTransaction(
+          pool,
+          async () => undefined,
+          (client) =>
+            client.query(
+              `SELECT * FROM public.hermes_consume_agent_key_enrollment(
+                $1, 'invalidated-agent', '{"kty":"OKP"}'::jsonb, 'invalidated-agent'
+              )`,
+              [invalidatedEnrollmentHash],
+            ),
+        ),
+      "P0002",
+    );
   });
 
   it("creates and atomically consumes Telegram link tokens through the runtime boundary", async () => {
@@ -1303,6 +1358,75 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
         ),
       "P0002",
     );
+
+    const lockExpiryHash = Buffer.alloc(32, 30);
+    const lockExpiryToken = await pool.query<{ id: string }>(
+      `INSERT INTO public.telegram_link_tokens (
+        organization_id, user_id, token_hash, expires_at, created_by_user_id, created_at
+      ) VALUES (
+        $1, $2, $3, clock_timestamp() + interval '200 milliseconds', $4,
+        clock_timestamp() - interval '9 minutes'
+      ) RETURNING id`,
+      [fixtures.organizationId, fixtures.unassignedAdminId, lockExpiryHash, fixtures.ownerId],
+    );
+    const tokenLocker = await pool.connect();
+    try {
+      await tokenLocker.query("BEGIN");
+      await tokenLocker.query(
+        "SELECT id FROM public.telegram_link_tokens WHERE id = $1 FOR UPDATE",
+        [lockExpiryToken.rows[0]!.id],
+      );
+      const blockedConsumption = withAppTransaction(
+        pool,
+        async () => undefined,
+        (client) =>
+          client.query("SELECT * FROM public.hermes_consume_telegram_link_token($1, $2, $3)", [
+            lockExpiryHash,
+            telegramUserId + 3,
+            telegramChatId + 3,
+          ]),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await tokenLocker.query("COMMIT");
+      await expect(blockedConsumption).rejects.toMatchObject({ code: "P0002" });
+    } finally {
+      await tokenLocker.query("ROLLBACK").catch(() => undefined);
+      tokenLocker.release();
+    }
+
+    const demotedHash = Buffer.alloc(32, 31);
+    await withAppUser(pool, fixtures.ownerId, (client) =>
+      client.query("SELECT * FROM public.hermes_create_telegram_link_token($1, $2, $3)", [
+        fixtures.organizationId,
+        fixtures.unassignedAdminId,
+        demotedHash,
+      ]),
+    );
+    await pool.query(
+      "UPDATE public.org_members SET role = 'viewer' WHERE organization_id = $1 AND user_id = $2",
+      [fixtures.organizationId, fixtures.unassignedAdminId],
+    );
+    try {
+      await expectSqlState(
+        () =>
+          withAppTransaction(
+            pool,
+            async () => undefined,
+            (client) =>
+              client.query("SELECT * FROM public.hermes_consume_telegram_link_token($1, $2, $3)", [
+                demotedHash,
+                telegramUserId + 4,
+                telegramChatId + 4,
+              ]),
+          ),
+        "P0002",
+      );
+    } finally {
+      await pool.query(
+        "UPDATE public.org_members SET role = 'admin' WHERE organization_id = $1 AND user_id = $2",
+        [fixtures.organizationId, fixtures.unassignedAdminId],
+      );
+    }
   });
 
   it("stores token digests only and exposes no token-table privileges to the runtime role", async () => {
@@ -1696,15 +1820,13 @@ dbTest("PostgreSQL Phase 2 policy gateway controls", () => {
     );
     await expectSqlState(
       () =>
-        withAppUser(pool, fixtures.ownerId, (client) =>
-          client.query(
-            `UPDATE public.pending_approvals
-             SET telegram_delivery_attempts = telegram_delivery_attempts - 1
-             WHERE id = $1`,
-            [approvalId],
-          ),
+        pool.query(
+          `UPDATE public.pending_approvals
+           SET telegram_delivery_attempts = telegram_delivery_attempts - 1
+           WHERE id = $1`,
+          [approvalId],
         ),
-      "42501",
+      "P0001",
     );
 
     const resolvedRequestId = await insertGatewayRequest(

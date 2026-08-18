@@ -1325,11 +1325,11 @@
         },
         "gateway_requests_spend_metadata_check": {
           "name": "gateway_requests_spend_metadata_check",
-          "value": "(\"gateway_requests\".\"amount_cents\" IS NULL AND \"gateway_requests\".\"currency\" IS NULL AND \"gateway_requests\".\"merchant_category_code\" IS NULL)\n        OR (\"gateway_requests\".\"amount_cents\" IS NOT NULL AND \"gateway_requests\".\"currency\" ~ '^[A-Z]{3}$')"
+          "value": "(\"gateway_requests\".\"amount_cents\" IS NULL AND \"gateway_requests\".\"currency\" IS NULL AND \"gateway_requests\".\"merchant_category_code\" IS NULL)\n        OR (\"gateway_requests\".\"amount_cents\" IS NOT NULL AND \"gateway_requests\".\"currency\" IS NOT NULL\n          AND \"gateway_requests\".\"currency\" ~ '^[A-Z]{3}$')"
         },
         "gateway_requests_allow_hkd_check": {
           "name": "gateway_requests_allow_hkd_check",
-          "value": "\"gateway_requests\".\"current_decision\" <> 'allow' OR \"gateway_requests\".\"currency\" = 'HKD'"
+          "value": "\"gateway_requests\".\"amount_cents\" IS NULL\n        OR \"gateway_requests\".\"current_decision\" <> 'allow'\n        OR (\"gateway_requests\".\"currency\" IS NOT NULL AND \"gateway_requests\".\"currency\" = 'HKD')"
         },
         "gateway_requests_authorization_timing_check": {
           "name": "gateway_requests_authorization_timing_check",

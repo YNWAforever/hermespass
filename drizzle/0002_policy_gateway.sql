@@ -108,8 +108,11 @@ CREATE TABLE "gateway_requests" (
 	CONSTRAINT "gateway_requests_amount_nonnegative_check" CHECK ("gateway_requests"."amount_cents" IS NULL
         OR ("gateway_requests"."amount_cents" >= 0 AND "gateway_requests"."amount_cents" <= 9007199254740991)),
 	CONSTRAINT "gateway_requests_spend_metadata_check" CHECK (("gateway_requests"."amount_cents" IS NULL AND "gateway_requests"."currency" IS NULL AND "gateway_requests"."merchant_category_code" IS NULL)
-        OR ("gateway_requests"."amount_cents" IS NOT NULL AND "gateway_requests"."currency" ~ '^[A-Z]{3}$')),
-	CONSTRAINT "gateway_requests_allow_hkd_check" CHECK ("gateway_requests"."current_decision" <> 'allow' OR "gateway_requests"."currency" = 'HKD'),
+        OR ("gateway_requests"."amount_cents" IS NOT NULL AND "gateway_requests"."currency" IS NOT NULL
+          AND "gateway_requests"."currency" ~ '^[A-Z]{3}$')),
+	CONSTRAINT "gateway_requests_allow_hkd_check" CHECK ("gateway_requests"."amount_cents" IS NULL
+        OR "gateway_requests"."current_decision" <> 'allow'
+        OR ("gateway_requests"."currency" IS NOT NULL AND "gateway_requests"."currency" = 'HKD')),
 	CONSTRAINT "gateway_requests_authorization_timing_check" CHECK ((
           "gateway_requests"."current_decision" = 'allow'
           AND "gateway_requests"."authorized_at" IS NOT NULL

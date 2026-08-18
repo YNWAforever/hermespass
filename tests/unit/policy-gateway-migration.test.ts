@@ -43,6 +43,7 @@ describe("additive Phase 2 policy gateway migration", () => {
     expect(schema).toContain('nameSnapshot: text("name_snapshot")');
     expect(schema).toContain("9007199254740991");
     expect(schema).toContain("gateway_requests_allow_hkd_check");
+    expect(schema).toContain("${table.currency} IS NOT NULL");
     expect(schema).not.toMatch(/(?:plain|raw)_?token/i);
   });
 
@@ -80,6 +81,7 @@ describe("additive Phase 2 policy gateway migration", () => {
     expect(sql).toContain("agent_audit_logs_amount_safe_integer_check");
     expect(sql).toContain("agents_spend_cap_safe_integer_check");
     expect(sql).toContain("gateway_requests_allow_hkd_check");
+    expect(sql).toContain('"gateway_requests"."currency" IS NOT NULL');
     expect(sql).toContain("agent.status = 'active'");
     expect(sql).toContain("key.status = 'active'");
     expect(sql).toContain("agent.expires_at > pg_catalog.clock_timestamp()");

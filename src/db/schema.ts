@@ -409,11 +409,14 @@ export const gatewayRequests = pgTable(
     check(
       "gateway_requests_spend_metadata_check",
       sql`(${table.amountCents} IS NULL AND ${table.currency} IS NULL AND ${table.merchantCategoryCode} IS NULL)
-        OR (${table.amountCents} IS NOT NULL AND ${table.currency} ~ '^[A-Z]{3}$')`,
+        OR (${table.amountCents} IS NOT NULL AND ${table.currency} IS NOT NULL
+          AND ${table.currency} ~ '^[A-Z]{3}$')`,
     ),
     check(
       "gateway_requests_allow_hkd_check",
-      sql`${table.currentDecision} <> 'allow' OR ${table.currency} = 'HKD'`,
+      sql`${table.amountCents} IS NULL
+        OR ${table.currentDecision} <> 'allow'
+        OR (${table.currency} IS NOT NULL AND ${table.currency} = 'HKD')`,
     ),
     check(
       "gateway_requests_authorization_timing_check",
