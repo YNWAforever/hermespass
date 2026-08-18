@@ -1,3 +1,4 @@
+import { deliverCommittedApproval } from "@/lib/gateway/approval-delivery";
 import { createPostgresGatewayStore } from "@/lib/gateway/postgres-store";
 import {
   gatewayRequestDigests,
@@ -344,7 +345,9 @@ export async function decideGatewayRequest(
   request: SignedGatewayRequest,
 ): Promise<GatewayDecisionDto> {
   try {
-    return await decideGatewayRequestWithStore(request, createPostgresGatewayStore());
+    return await deliverCommittedApproval(() =>
+      decideGatewayRequestWithStore(request, createPostgresGatewayStore()),
+    );
   } catch (error) {
     if (error instanceof GatewayServiceError) throw error;
     if (

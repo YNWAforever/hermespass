@@ -71,6 +71,16 @@ export function errorResponse(request: Request, error: unknown): Response {
     return jsonError(request, message, "This nonce is bound to different signed bytes.", 409);
   if (message === "GATEWAY_UNAVAILABLE")
     return jsonError(request, message, "The gateway is temporarily unavailable.", 503);
+  if (message === "APPROVAL_UNAVAILABLE")
+    return jsonError(request, message, "The approval is no longer available.", 409);
+  if (message === "APPROVAL_RESOLUTION_INVALID")
+    return jsonError(request, message, "The approval resolution is invalid.", 400);
+  if (message === "APPROVALS_UNAVAILABLE")
+    return jsonError(request, message, "Approvals are temporarily unavailable.", 503);
+  if (message === "TELEGRAM_LINK_INVALID")
+    return jsonError(request, message, "The Telegram link proof is invalid or unavailable.", 400);
+  if (message === "TELEGRAM_LINK_UNAVAILABLE")
+    return jsonError(request, message, "Telegram linking is temporarily unavailable.", 503);
 
   if (message === "AGENT_NOT_FOUND")
     return Response.json(
