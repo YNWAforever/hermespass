@@ -1,0 +1,59 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const root = resolve(import.meta.dirname, "../..");
+const migration = resolve(root, "drizzle/0013_productization_core.sql");
+const journal = resolve(root, "drizzle/meta/_journal.json");
+
+describe("productization migration contract", () => {
+  it("appends one migration after insurance without rewriting history", () => {
+    expect(existsSync(migration)).toBe(true);
+    const entries = JSON.parse(readFileSync(journal, "utf8")).entries as Array<{
+      idx: number;
+      tag: string;
+    }>;
+    expect(entries.slice(0, 13).map((entry) => entry.tag)).toEqual([
+      "0000_low_human_robot",
+      "0001_phase1_security_hardening",
+      "0002_policy_gateway",
+      "0003_gateway_auth_boundary",
+      "0004_approval_operations",
+      "0005_approval_revalidation",
+      "0006_scoped_payments",
+      "0007_payment_authorization_hardening",
+      "0008_mandate_verified_agent_boundary",
+      "0009_card_provisioning_transition",
+      "0010_wallet_card_provisioning_attempt",
+      "0011_payment_authorization_boundary",
+      "0012_insurance_lifecycle",
+    ]);
+    expect(entries.at(-1)).toMatchObject({ idx: 13, tag: "0013_productization_core" });
+  });
+
+  it("keeps the pooled role and RLS fail-closed", () => {
+    const sql = readFileSync(migration, "utf8");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+    expect(sql).toContain("hermes_app");
+    expect(sql).toContain("hermes_consume_api_key");
+    expect(sql).toContain("hermes_accept_org_invite");
+    expect(sql).not.toMatch(/BYPASSRLS/i);
+    expect(sql).not.toMatch(/supabase|auth\\./i);
+  });
+
+  it("defines the productization tables and safe constraints", () => {
+    const sql = readFileSync(migration, "utf8");
+    for (const table of [
+      "org_invites",
+      "api_keys",
+      "api_usage",
+      "billing_events",
+      "agent_messages",
+    ]) {
+      expect(sql).toMatch(new RegExp(`CREATE TABLE (?:public\\.)?"?${table}"?`));
+    }
+    expect(sql).toContain("token_hash");
+    expect(sql).toContain("payload_digest");
+    expect(sql).toContain("organization_id");
+  });
+});

@@ -21,6 +21,14 @@ import {
 import { sql } from "drizzle-orm";
 
 export const memberRole = pgEnum("member_role", ["owner", "admin", "viewer"]);
+export const organizationTier = pgEnum("organization_tier", [
+  "pilot",
+  "starter",
+  "growth",
+  "scale",
+]);
+export const inviteRole = pgEnum("invite_role", ["admin", "viewer"]);
+export const messageDirection = pgEnum("message_direction", ["inbound", "outbound"]);
 export const riskTier = pgEnum("risk_tier", ["low", "medium", "high"]);
 export const agentStatus = pgEnum("agent_status", ["active", "revoked"]);
 export const keyStatus = pgEnum("key_status", ["active", "revoked"]);
@@ -110,6 +118,9 @@ export const organizations = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
+    tier: organizationTier("tier").notNull().default("pilot"),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -1199,6 +1210,177 @@ export const insuranceCommissionLedger = pgTable(
     ),
   ],
 );
+export const orgInvites = pgTable(
+  "org_invites",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: inviteRole("role").notNull().default("viewer"),
+    tokenHash: bytea("token_hash").notNull(),
+    invitedByUserId: text("invited_by_user_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("org_invites_token_hash_key").on(table.tokenHash),
+    uniqueIndex("org_invites_live_email_key")
+      .on(table.organizationId, table.email)
+      .where(sql`${table.acceptedAt} IS NULL`),
+    foreignKey({
+      name: "org_invites_inviter_organization_fk",
+      columns: [table.organizationId, table.invitedByUserId],
+      foreignColumns: [orgMembers.organizationId, orgMembers.userId],
+    }).onDelete("restrict"),
+    check(
+      "org_invites_email_check",
+      sql`${table.email} ~ '^[^[:cntrl:]@[:space:]]+@[^[:cntrl:]@[:space:]]+\\.[^[:cntrl:]@[:space:]]+$'`,
+    ),
+    check("org_invites_token_hash_length_check", sql`octet_length(${table.tokenHash}) = 32`),
+    check(
+      "org_invites_expiry_check",
+      sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '15 minutes'`,
+    ),
+    check(
+      "org_invites_acceptance_check",
+      sql`${table.acceptedAt} IS NULL OR ${table.acceptedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    keyHash: text("key_hash").notNull(),
+    createdByUserId: text("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("api_keys_key_hash_key").on(table.keyHash),
+    unique("api_keys_id_organization_key").on(table.id, table.organizationId),
+    foreignKey({
+      name: "api_keys_creator_organization_fk",
+      columns: [table.organizationId, table.createdByUserId],
+      foreignColumns: [orgMembers.organizationId, orgMembers.userId],
+    }).onDelete("restrict"),
+    check(
+      "api_keys_name_check",
+      sql`length(btrim(${table.name})) BETWEEN 2 AND 120 AND ${table.name} !~ '[[:cntrl:]]'`,
+    ),
+    check("api_keys_prefix_check", sql`length(${table.prefix}) = 12`),
+    check("api_keys_hash_check", sql`${table.keyHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+export const apiUsage = pgTable(
+  "api_usage",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    apiKeyId: uuid("api_key_id").notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    requestId: text("request_id").notNull(),
+    status: smallint("status").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("api_usage_key_time_idx").on(table.apiKeyId, table.createdAt),
+    foreignKey({
+      name: "api_usage_key_organization_fk",
+      columns: [table.apiKeyId, table.organizationId],
+      foreignColumns: [apiKeys.id, apiKeys.organizationId],
+    }).onDelete("cascade"),
+    check("api_usage_endpoint_check", sql`length(btrim(${table.endpoint})) BETWEEN 1 AND 120`),
+    check("api_usage_request_id_check", sql`length(btrim(${table.requestId})) BETWEEN 1 AND 120`),
+    check("api_usage_status_check", sql`${table.status} BETWEEN 100 AND 599`),
+  ],
+);
+
+export const billingEvents = pgTable(
+  "billing_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    providerEventId: text("provider_event_id").notNull(),
+    customerId: text("customer_id").notNull(),
+    eventType: text("event_type").notNull(),
+    payloadDigest: bytea("payload_digest").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("billing_events_provider_event_key").on(table.providerEventId),
+    index("billing_events_organization_received_idx").on(table.organizationId, table.receivedAt),
+    check(
+      "billing_events_provider_event_check",
+      sql`length(btrim(${table.providerEventId})) BETWEEN 1 AND 255`,
+    ),
+    check(
+      "billing_events_customer_check",
+      sql`length(btrim(${table.customerId})) BETWEEN 1 AND 255`,
+    ),
+    check("billing_events_digest_check", sql`octet_length(${table.payloadDigest}) = 32`),
+  ],
+);
+
+export const agentMessages = pgTable(
+  "agent_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    agentId: uuid("agent_id").notNull(),
+    direction: messageDirection("direction").notNull().default("inbound"),
+    fromAddress: text("from_address").notNull(),
+    toAddress: text("to_address").notNull(),
+    subject: text("subject"),
+    bodyText: text("body_text"),
+    providerMessageId: text("provider_message_id"),
+    payloadDigest: bytea("payload_digest").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("agent_messages_agent_received_idx").on(table.agentId, table.receivedAt),
+    uniqueIndex("agent_messages_provider_id_key")
+      .on(table.organizationId, table.providerMessageId)
+      .where(sql`${table.providerMessageId} IS NOT NULL`),
+    foreignKey({
+      name: "agent_messages_agent_organization_fk",
+      columns: [table.agentId, table.organizationId],
+      foreignColumns: [agents.id, agents.organizationId],
+    }).onDelete("restrict"),
+    check(
+      "agent_messages_from_check",
+      sql`length(btrim(${table.fromAddress})) BETWEEN 3 AND 320 AND ${table.fromAddress} !~ '[[:cntrl:]]'`,
+    ),
+    check(
+      "agent_messages_to_check",
+      sql`${table.toAddress} ~ '^[a-z0-9][a-z0-9-]{1,62}@agents\\.hermespass\\.asia$'`,
+    ),
+    check(
+      "agent_messages_subject_check",
+      sql`${table.subject} IS NULL OR (length(${table.subject}) <= 280 AND ${table.subject} !~ '[[:cntrl:]]')`,
+    ),
+    check(
+      "agent_messages_body_check",
+      sql`${table.bodyText} IS NULL OR octet_length(${table.bodyText}) <= 16384`,
+    ),
+    check("agent_messages_digest_check", sql`octet_length(${table.payloadDigest}) = 32`),
+  ],
+);
 export const schema = {
   organizations,
   orgMembers,
@@ -1218,6 +1400,11 @@ export const schema = {
   insurancePolicies,
   insurancePolicyEvents,
   insuranceCommissionLedger,
+  orgInvites,
+  apiKeys,
+  apiUsage,
+  billingEvents,
+  agentMessages,
 };
 
 export type Organization = typeof organizations.$inferSelect;
@@ -1237,3 +1424,8 @@ export type AuditRow = typeof agentAuditLogs.$inferSelect;
 export type InsurancePolicyRow = typeof insurancePolicies.$inferSelect;
 export type InsurancePolicyEventRow = typeof insurancePolicyEvents.$inferSelect;
 export type InsuranceCommissionLedgerRow = typeof insuranceCommissionLedger.$inferSelect;
+export type OrgInviteRow = typeof orgInvites.$inferSelect;
+export type ApiKeyRow = typeof apiKeys.$inferSelect;
+export type ApiUsageRow = typeof apiUsage.$inferSelect;
+export type BillingEventRow = typeof billingEvents.$inferSelect;
+export type AgentMessageRow = typeof agentMessages.$inferSelect;
