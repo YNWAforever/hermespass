@@ -109,6 +109,44 @@ export function errorResponse(request: Request, error: unknown): Response {
   if (message === "TELEGRAM_LINK_UNAVAILABLE")
     return jsonError(request, message, "Telegram linking is temporarily unavailable.", 503);
 
+  if (message === "ORGANIZATION_INVALID")
+    return jsonError(request, message, "The organization details are invalid.", 400);
+  if (message === "ORGANIZATION_MEMBERSHIP_EXISTS")
+    return jsonError(request, message, "This user already belongs to an organization.", 409);
+  if (message === "ORGANIZATION_SLUG_TAKEN")
+    return jsonError(request, message, "That organization slug is already in use.", 409);
+  if (message === "ORGANIZATION_UNAVAILABLE")
+    return jsonError(request, message, "The organization service is temporarily unavailable.", 503);
+  if (message === "INVITE_INVALID")
+    return jsonError(request, message, "The invitation is invalid or expired.", 400);
+  if (message === "INVITE_EMAIL_REQUIRED")
+    return jsonError(
+      request,
+      message,
+      "A verified account email is required to accept this invite.",
+      400,
+    );
+  if (message === "INVITE_EMAIL_MISMATCH")
+    return jsonError(
+      request,
+      message,
+      "This invitation was issued to a different email address.",
+      403,
+    );
+  if (message === "INVITE_ROLE_INVALID")
+    return jsonError(request, message, "The invitation role is invalid.", 400);
+  if (message === "INVITE_ALREADY_EXISTS")
+    return jsonError(request, message, "A live invitation already exists for that email.", 409);
+  if (message === "INVITE_UNAVAILABLE")
+    return jsonError(request, message, "The invitation service is temporarily unavailable.", 503);
+  if (message === "TIER_LIMIT_REACHED")
+    return jsonError(
+      request,
+      message,
+      "This organization has reached its active-agent limit.",
+      402,
+    );
+
   if (message === "AGENT_NOT_FOUND")
     return Response.json(
       { error: { code: message, message: "Agent not found.", requestId: id } },

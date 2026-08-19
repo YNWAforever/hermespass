@@ -7,13 +7,15 @@ function isSignup(request: Request): boolean {
   return new URL(request.url).pathname.includes("/sign-up");
 }
 
-function rejectSignup(request: Request): Response | null {
+function rejectUnsupportedSignup(request: Request): Response | null {
   if (!isSignup(request)) return null;
+  const pathname = new URL(request.url).pathname;
+  if (request.method === "POST" && pathname.endsWith("/sign-up/email")) return null;
   return Response.json(
     {
       error: {
-        code: "SIGNUP_DISABLED",
-        message: "HermesPass accounts are provisioned by an administrator.",
+        code: "SIGNUP_FLOW_REQUIRED",
+        message: "Use the HermesPass signup flow to create an account.",
       },
     },
     { status: 404 },
@@ -21,7 +23,7 @@ function rejectSignup(request: Request): Response | null {
 }
 
 export async function GET(request: Request, context: AuthRouteContext) {
-  const rejected = rejectSignup(request);
+  const rejected = rejectUnsupportedSignup(request);
   if (rejected) return rejected;
   try {
     return getAuth().handler().GET(request, context);
@@ -31,7 +33,7 @@ export async function GET(request: Request, context: AuthRouteContext) {
 }
 
 export async function POST(request: Request, context: AuthRouteContext) {
-  const rejected = rejectSignup(request);
+  const rejected = rejectUnsupportedSignup(request);
   if (rejected) return rejected;
   try {
     return getAuth().handler().POST(request, context);

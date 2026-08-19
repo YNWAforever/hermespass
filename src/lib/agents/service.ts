@@ -140,6 +140,23 @@ export async function issueAgent(actor: Actor, input: unknown): Promise<AgentDto
   const environment = keyEnvironment();
 
   return withActorTransaction(actor, async (tx) => {
+    await tx.execute(
+      sql`select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${"productization:tier:" + actor.organizationId}, 0))`,
+    );
+    const tierResult = await tx.execute(sql`
+      select public.hermes_tier_agent_limit(o.tier::text) as agent_limit,
+        count(a.id)::int as active_agents
+      from public.organizations o
+      left join public.agents a on a.organization_id = o.id and a.status = 'active'
+      where o.id = ${actor.organizationId}::uuid
+      group by o.id, o.tier
+    `);
+    const tierRow = tierResult.rows[0] as
+      { agent_limit?: number | string; active_agents?: number | string } | undefined;
+    if (!tierRow) throw new Error("ORGANIZATION_UNAVAILABLE");
+    if (Number(tierRow.active_agents) >= Number(tierRow.agent_limit))
+      throw new Error("TIER_LIMIT_REACHED");
+
     const issuer = await tx
       .select()
       .from(issuerKeys)
