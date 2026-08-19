@@ -22,3 +22,9 @@
 - Treat `src/app/**/page.tsx` and protected route handlers as server-owned authorization boundaries. Resolve the Neon Auth session and organization membership on the server; do not trust organization IDs, roles, or DIDs supplied by the browser.
 - Use the restricted `hermes_app` role at runtime and keep migration URLs, owner connections, KEKs, and Auth secrets out of client bundles. Schema changes belong in reviewed Drizzle migrations and SQL policies; never run `drizzle-kit push` against hosted branches.
 - Keep issuer and agent private JWKs inside the envelope-encryption adapter. Public DID and verification responses may expose only the documented safe columns, and audit rows are append-only.
+
+## Neon productization boundaries
+
+- Productization adapters remain request-time and lazy: missing report, Stripe, or communications secrets must fail closed without breaking static builds.
+- Persist only hashes/digests for invite, API-key, provider-event, and message replay identifiers; keep raw provider payloads and credentials out of logs and browser responses.
+- Keep n8n and Stripe artifacts inactive/test-mode until the separate nonproduction provider approval; production migrations, DNS, publication, and customer seed require a separate production release approval.
