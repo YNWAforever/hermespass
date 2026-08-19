@@ -47,7 +47,9 @@ async function readRawBody(request: Request): Promise<string> {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    if (!exactSecret(request.headers.get("x-comms-secret"), commsInboundSecret())) {
+    const suppliedSecret =
+      request.headers.get("x-comms-secret") ?? request.headers.get("x-comms-inbound-secret");
+    if (!exactSecret(suppliedSecret, commsInboundSecret())) {
       return jsonError(
         request,
         "COMMS_INBOUND_SECRET_INVALID",
