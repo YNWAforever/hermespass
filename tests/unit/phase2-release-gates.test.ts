@@ -49,9 +49,9 @@ describe("Phase 2 release gates", () => {
   it("keeps Telegram deterministic and hosted Neon smoke approval-gated", () => {
     const workflow = source(".github/workflows/ci.yml");
 
-    expect(workflow).toContain("Neon Phase 2 ephemeral smoke (approval-gated)");
+    expect(workflow).toContain("Neon Phase 5 ephemeral smoke (approval-gated)");
     expect(workflow).toContain("HERMESPASS_NEON_SMOKE == 'true'");
-    expect(workflow).toContain("needs: [postgres-integration, parity]");
+    expect(workflow).toContain("needs: [postgres-integration, parity, productization]");
     expect(workflow).toContain("DATABASE_URL_TEST: ${{ secrets.HERMESPASS_NEON_SMOKE_URL }}");
     expect(workflow).toContain("bun run test:db:smoke");
     expect(workflow).not.toContain("TELEGRAM_BOT_TOKEN:");

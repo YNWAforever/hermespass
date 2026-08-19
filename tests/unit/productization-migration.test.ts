@@ -44,7 +44,10 @@ describe("productization migration contract", () => {
       idx: 15,
       tag: "0015_report_read_boundary",
     });
-    expect(entries.find((entry) => entry.idx === 16)).toMatchObject({ idx: 16, tag: "0016_billing_webhook_boundary" });
+    expect(entries.find((entry) => entry.idx === 16)).toMatchObject({
+      idx: 16,
+      tag: "0016_billing_webhook_boundary",
+    });
     expect(entries.at(-1)).toMatchObject({ idx: 17, tag: "0017_comms_inbound_boundary" });
   });
 
