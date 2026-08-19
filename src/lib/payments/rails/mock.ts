@@ -118,6 +118,10 @@ export const mockRail: PaymentRail = {
     } catch {
       throw paymentRailError("PAYMENT_WEBHOOK_INVALID");
     }
+    if (typeof event === "object" && event !== null && "type" in event) {
+      const type = (event as { type?: unknown }).type;
+      if (type !== "mock.issuing_authorization.request") return null;
+    }
     const parsed = parseMockEvent(event);
     if (!parsed) throw paymentRailError("PAYMENT_WEBHOOK_INVALID");
     return toPaymentAuthorizationInput(parsed);

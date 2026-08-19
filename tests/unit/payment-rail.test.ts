@@ -160,6 +160,13 @@ describe("deterministic mock payment rail", () => {
     expect(mockRail.verifyAuthorizationWebhook(JSON.stringify(event), "mock-signature")).toEqual(
       safeEvent,
     );
+
+    expect(
+      mockRail.verifyAuthorizationWebhook(
+        JSON.stringify({ type: "mock.issuing_authorization.updated", id: "evt_other" }),
+        "mock-signature",
+      ),
+    ).toBeNull();
   });
 
   it("rejects unsigned, oversized, or malformed test events", () => {

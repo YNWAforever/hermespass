@@ -1,7 +1,9 @@
 export type PaymentAuthorizationInput = {
   eventId: string;
+  rail?: string;
   railAuthorizationId: string;
   railCardId: string;
+  mandateId?: string | null;
   amountCents: number;
   currency: string;
   merchantCategoryCode: string | null;
