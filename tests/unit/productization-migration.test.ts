@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, "../..");
 const migration = resolve(root, "drizzle/0013_productization_core.sql");
 const publicVerificationMigration = resolve(root, "drizzle/0014_public_verification.sql");
 const reportBoundaryMigration = resolve(root, "drizzle/0015_report_read_boundary.sql");
+const billingBoundaryMigration = resolve(root, "drizzle/0016_billing_webhook_boundary.sql");
 const journal = resolve(root, "drizzle/meta/_journal.json");
 
 describe("productization migration contract", () => {
@@ -38,7 +39,11 @@ describe("productization migration contract", () => {
       idx: 14,
       tag: "0014_public_verification",
     });
-    expect(entries.at(-1)).toMatchObject({ idx: 15, tag: "0015_report_read_boundary" });
+    expect(entries.find((entry) => entry.idx === 15)).toMatchObject({
+      idx: 15,
+      tag: "0015_report_read_boundary",
+    });
+    expect(entries.at(-1)).toMatchObject({ idx: 16, tag: "0016_billing_webhook_boundary" });
   });
 
   it("adds the restricted report read boundary without rewriting core SQL", () => {
@@ -47,6 +52,16 @@ describe("productization migration contract", () => {
     expect(sql).toContain("hermes_report_read_model");
     expect(sql).toContain("hermes_verify_audit_chain");
     expect(sql).toContain("REVOKE ALL ON FUNCTION public.hermes_report_read_model");
+    expect(sql).not.toMatch(/DROP TABLE|DROP FUNCTION/i);
+  });
+
+  it("adds the billing transition boundary without rewriting core SQL", () => {
+    expect(existsSync(billingBoundaryMigration)).toBe(true);
+    const sql = readFileSync(billingBoundaryMigration, "utf8");
+    expect(sql).toContain("hermes_apply_billing_event");
+    expect(sql).toContain("hermes_store_stripe_customer");
+    expect(sql).toContain("organizations_billing_system_update");
+    expect(sql).toContain("REVOKE ALL ON FUNCTION public.hermes_apply_billing_event");
     expect(sql).not.toMatch(/DROP TABLE|DROP FUNCTION/i);
   });
 

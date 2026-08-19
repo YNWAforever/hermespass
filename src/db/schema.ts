@@ -124,7 +124,12 @@ export const organizations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("organizations_slug_key").on(table.slug)],
+  (table) => [
+    uniqueIndex("organizations_slug_key").on(table.slug),
+    uniqueIndex("organizations_stripe_customer_key")
+      .on(table.stripeCustomerId)
+      .where(sql`${table.stripeCustomerId} IS NOT NULL`),
+  ],
 );
 
 export const orgMembers = pgTable(

@@ -15,7 +15,7 @@ if (databaseRequired) {
 
 const migrationDir = join(process.cwd(), "drizzle");
 const migrationPaths = readdirSync(migrationDir)
-  .filter((name) => /^00(0[0-9]|1[0-5])_.*\.sql$/.test(name))
+  .filter((name) => /^00(0[0-9]|1[0-6])_.*\.sql$/.test(name))
   .sort()
   .map((name) => join(migrationDir, name));
 
@@ -94,6 +94,16 @@ dbTest("Phase 5 productization PostgreSQL boundaries", () => {
       );
       return result.rows[0]!.id;
     });
+    const seedClient = await pool.connect();
+    try {
+      await seedClient.query("SET ROLE postgres");
+      await seedClient.query(
+        "UPDATE public.organizations SET stripe_customer_id = $1 WHERE id = $2",
+        ["cus_product", organizationId],
+      );
+    } finally {
+      seedClient.release();
+    }
     await appTx(pool, secondUser, async (client) => {
       const result = await client.query<{ id: string }>(
         "SELECT id FROM public.hermes_create_organization($1, $2, $3, $4, $5)",
@@ -196,19 +206,27 @@ dbTest("Phase 5 productization PostgreSQL boundaries", () => {
     const first = await appTx(pool, "billing-worker", async (client) => {
       await client.query("SELECT public.hermes_set_productization_claim('system:billing')");
       return client.query(
-        "SELECT public.hermes_record_billing_event($1,'evt_product_1','cus_product','customer.subscription.updated',$2) AS inserted",
-        [organizationId, digest],
+        "SELECT * FROM public.hermes_apply_billing_event('cus_product','evt_product_1','customer.subscription.updated','sub_product','growth',$1)",
+        [digest],
       );
     });
     const second = await appTx(pool, "billing-worker", async (client) => {
       await client.query("SELECT public.hermes_set_productization_claim('system:billing')");
       return client.query(
-        "SELECT public.hermes_record_billing_event($1,'evt_product_1','cus_product','customer.subscription.updated',$2) AS inserted",
-        [organizationId, digest],
+        "SELECT * FROM public.hermes_apply_billing_event('cus_product','evt_product_1','customer.subscription.updated','sub_product','growth',$1)",
+        [digest],
       );
     });
-    expect(first.rows[0]?.inserted).toBe(true);
-    expect(second.rows[0]?.inserted).toBe(false);
+    expect(first.rows[0]).toMatchObject({ organization_id: organizationId, inserted: true });
+    const billingState = await pool.query(
+      "SELECT tier, stripe_subscription_id FROM public.organizations WHERE id = $1",
+      [organizationId],
+    );
+    expect(billingState.rows[0]).toMatchObject({
+      tier: "growth",
+      stripe_subscription_id: "sub_product",
+    });
+    expect(second.rows[0]).toMatchObject({ organization_id: organizationId, inserted: false });
 
     const message = await appTx(pool, "comms-worker", async (client) => {
       await client.query("SELECT public.hermes_set_productization_claim('system:comms')");

@@ -176,6 +176,26 @@ export function errorResponse(request: Request, error: unknown): Response {
   if (message === "PAYLOAD_TOO_LARGE")
     return jsonError(request, message, "The request is too large.", 413);
 
+  if (
+    message === "BILLING_WEBHOOK_SIGNATURE_INVALID" ||
+    message === "BILLING_WEBHOOK_EVENT_INVALID" ||
+    message === "BILLING_PRICE_INVALID"
+  )
+    return jsonError(request, message, "The billing webhook is invalid.", 400);
+  if (message === "BILLING_CUSTOMER_NOT_FOUND")
+    return jsonError(request, message, "The billing customer was not found.", 404);
+  if (message === "BILLING_CUSTOMER_CONFLICT")
+    return jsonError(request, message, "The billing customer is already bound.", 409);
+  if (message === "BILLING_PROVIDER_RESPONSE_INVALID")
+    return jsonError(request, message, "The billing provider response is invalid.", 502);
+  if (
+    message === "STRIPE_SECRET_KEY is required for billing operations" ||
+    message === "STRIPE_BILLING_WEBHOOK_SECRET is required for billing webhooks"
+  )
+    return jsonError(request, "BILLING_UNAVAILABLE", "Billing configuration is unavailable.", 503);
+  if (/^STRIPE_PRICE_(STARTER|GROWTH|SCALE) is required for billing checkout$/.test(message))
+    return jsonError(request, "BILLING_UNAVAILABLE", "Billing configuration is unavailable.", 503);
+
   if (message === "REPORT_EXPORT_INVALID")
     return jsonError(request, message, "The report export credential is invalid.", 401);
   if (message === "REPORT_EXPORT_SECRET is required for report exports")

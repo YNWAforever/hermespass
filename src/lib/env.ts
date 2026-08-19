@@ -47,6 +47,13 @@ export function reportExportSecret(): string {
   );
 }
 
+export function stripeBillingSecret(): string {
+  return requiredProductizationSecret(
+    "STRIPE_SECRET_KEY",
+    "STRIPE_SECRET_KEY is required for billing operations",
+  );
+}
+
 export function stripeBillingWebhookSecret(): string {
   return requiredProductizationSecret(
     "STRIPE_BILLING_WEBHOOK_SECRET",

@@ -16,7 +16,7 @@ if (databaseRequired) {
 
 const migrationDir = join(process.cwd(), "drizzle");
 const migrationPaths = readdirSync(migrationDir)
-  .filter((name) => /^00(0[0-9]|1[0-5])_.*\.sql$/.test(name))
+  .filter((name) => /^00(0[0-9]|1[0-6])_.*\.sql$/.test(name))
   .sort()
   .map((name) => join(migrationDir, name));
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const names = [
   "REPORT_EXPORT_SECRET",
+  "STRIPE_SECRET_KEY",
   "STRIPE_BILLING_WEBHOOK_SECRET",
   "COMMS_INBOUND_SECRET",
   "STRIPE_PRICE_STARTER",
@@ -27,6 +28,7 @@ describe("Phase 5 request-time environment configuration", () => {
   it("imports without reading optional provider configuration", async () => {
     const env = await import("@/lib/env");
     expect(env).toHaveProperty("reportExportSecret");
+    expect(env).toHaveProperty("stripeBillingSecret");
     expect(env).toHaveProperty("stripeBillingWebhookSecret");
     expect(env).toHaveProperty("commsInboundSecret");
     expect(env).toHaveProperty("stripeBillingPrice");
@@ -34,6 +36,7 @@ describe("Phase 5 request-time environment configuration", () => {
 
   it.each([
     ["reportExportSecret", "REPORT_EXPORT_SECRET is required for report exports"],
+    ["stripeBillingSecret", "STRIPE_SECRET_KEY is required for billing operations"],
     [
       "stripeBillingWebhookSecret",
       "STRIPE_BILLING_WEBHOOK_SECRET is required for billing webhooks",
