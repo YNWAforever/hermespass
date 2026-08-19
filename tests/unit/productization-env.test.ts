@@ -54,7 +54,7 @@ describe("Phase 5 request-time environment configuration", () => {
   );
 
   it("rejects a partial Stripe price configuration", async () => {
-    process.env.STRIPE_PRICE_STARTER = "price_starter";
+    process.env["STRIPE_PRICE_STARTER"] = "price_starter";
     const { stripeBillingPrice } = await import("@/lib/env");
     expect(() => stripeBillingPrice("growth")).toThrow("STRIPE_PRICE_GROWTH is required");
   });
