@@ -85,6 +85,13 @@
       "when": 1787100000000,
       "tag": "0011_payment_authorization_boundary",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787166108116,
+      "tag": "0012_insurance_lifecycle",
+      "breakpoints": true
     }
   ]
 }
