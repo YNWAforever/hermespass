@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { buildChain, SEED_AGENTS, SEED_EVENTS } from "@/lib/hermes-data";
+import { E2E_AGENTS } from "@/lib/agents/e2e-fixtures";
 import { useAgentFixtureMode } from "@/lib/agents/fixture-context";
 import type { AgentDto } from "@/lib/agents/types";
 
@@ -29,33 +29,21 @@ export async function requestJson<T>(input: RequestInfo | URL, init?: RequestIni
   return body.data;
 }
 
-const testAgentData = {
-  agents: SEED_AGENTS.map((agent) => ({
-    ...agent,
-    databaseId: agent.id,
-    orgSlug: "test-org",
-    credentialId: `urn:uuid:${agent.slug}`,
-    credentialJws: "",
-    governanceNotes: null,
-    keyStatus: "active" as const,
-    keyCustody: "legacy_encrypted" as const,
-  })) as AgentDto[],
-};
-const testAuditData = {
-  entries: buildChain(SEED_EVENTS).map((entry) => ({
-    id: entry.index,
-    timestamp: entry.timestamp,
-    agentDid: entry.agentSlug,
-    agentSlug: entry.agentSlug,
-    action: entry.action,
-    summary: entry.action,
-    payloadHash: entry.payloadHash,
-    previousHash: entry.prevHash,
-    decision: entry.decision,
-    tool: entry.action,
-  })),
-};
+const testAgentData = { agents: E2E_AGENTS };
+const testAuditData: { entries: AuditEntry[] } = { entries: [] };
 
+export type AuditEntry = {
+  id: number;
+  timestamp: string;
+  agentDid: string | null;
+  agentSlug: string | null;
+  action: string;
+  summary: string;
+  payloadHash: string;
+  previousHash: string;
+  decision: "allow" | "deny" | "hold" | null;
+  tool: string | null;
+};
 export function useAgents() {
   const usesFixtureData = useAgentFixtureMode();
   return useQuery({
@@ -182,8 +170,6 @@ export function useRevokeAgent() {
     },
   });
 }
-
-export type AuditEntry = (typeof testAuditData)["entries"][number];
 
 export function useAudit() {
   const usesFixtureData = useAgentFixtureMode();

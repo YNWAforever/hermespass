@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/hermes/app-shell";
-import { HermesProvider } from "@/lib/hermes-store";
+import { Providers } from "@/app/providers";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
@@ -31,11 +31,11 @@ describe("live app shell", () => {
     );
 
     render(
-      <HermesProvider>
+      <Providers>
         <AppShell>
           <p>Dashboard body</p>
         </AppShell>
-      </HermesProvider>,
+      </Providers>,
     );
 
     expect(await screen.findByText("7 pending review")).toBeInTheDocument();

@@ -6,7 +6,6 @@ import { DecisionBadge } from "@/components/hermes/badges";
 import { PageHeader } from "@/components/hermes/page-header";
 import { Button } from "@/components/ui/button";
 import { useAgents, useAudit, useAuditVerification } from "@/lib/agents/client";
-import { mockAgentBySlug } from "@/lib/hermes-data";
 
 export function ComplianceClient() {
   const { data } = useAudit();
@@ -17,7 +16,7 @@ export function ComplianceClient() {
 
   function agentName(slug: string | null) {
     if (!slug) return "Unknown agent";
-    return agents.find((agent) => agent.slug === slug)?.name ?? mockAgentBySlug(slug)?.name ?? slug;
+    return agents.find((agent) => agent.slug === slug)?.name ?? slug;
   }
 
   const verificationTitle = verification.isLoading
@@ -115,7 +114,7 @@ export function ComplianceClient() {
                     {block.previousHash.slice(0, 16)}…
                   </td>
                   <td className="px-4 py-3">
-                    <DecisionBadge decision={block.decision} />
+                    {block.decision ? <DecisionBadge decision={block.decision} /> : "—"}
                   </td>
                 </tr>
               ))}

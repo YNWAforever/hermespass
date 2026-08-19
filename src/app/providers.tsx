@@ -1,15 +1,16 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
-import { HermesProvider } from "@/lib/hermes-store";
 
 export function Providers({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
   return (
-    <HermesProvider>
+    <QueryClientProvider client={queryClient}>
       {children}
       <Toaster />
-    </HermesProvider>
+    </QueryClientProvider>
   );
 }

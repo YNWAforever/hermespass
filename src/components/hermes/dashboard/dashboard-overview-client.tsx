@@ -16,17 +16,18 @@ import { DecisionBadge } from "@/components/hermes/badges";
 import { PageHeader } from "@/components/hermes/page-header";
 import { useAgents } from "@/lib/agents/client";
 import { useGatewayActivity } from "@/lib/gateway/client";
-import { formatHKD } from "@/lib/hermes-data";
-import { useHermes } from "@/lib/hermes-store";
+import { formatHKD } from "@/lib/hermes-constants";
+import { useWalletCards } from "@/lib/payments/wallets-client";
 
 export function DashboardOverviewClient() {
-  const { wallets, streaming } = useHermes();
-  const gateway = useGatewayActivity(streaming);
+  const gateway = useGatewayActivity(true);
+  const walletsQuery = useWalletCards();
   const agentsQuery = useAgents();
   const agents = agentsQuery.data?.agents ?? [];
   const activity = gateway.data?.activity ?? [];
   const aggregates = gateway.data?.aggregates;
-  const monthSpend = wallets.reduce((sum, wallet) => sum + wallet.spentThisMonth, 0);
+  const activeCards =
+    walletsQuery.data?.cards.filter((card) => card.status === "active").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -41,7 +42,7 @@ export function DashboardOverviewClient() {
           icon={Fingerprint}
           label="Active passports"
           value={String(agents.filter((agent) => agent.status === "active").length)}
-          detail={`${agents.length} registered agents`}
+          detail={`${agents.length} registered agents · ${activeCards} active cards`}
         />
         <Kpi
           icon={Zap}
@@ -88,9 +89,7 @@ export function DashboardOverviewClient() {
                 Allow / hold / deny volume across the policy gateway
               </p>
             </div>
-            <span className="font-mono text-[11px] text-muted-foreground">
-              {formatHKD(monthSpend)} agent spend MTD
-            </span>
+            <span className="font-mono text-[11px] text-muted-foreground">— agent spend MTD</span>
           </div>
           <div className="mt-5 h-72">
             <ResponsiveContainer width="100%" height="100%">

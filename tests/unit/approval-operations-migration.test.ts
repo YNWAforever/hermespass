@@ -26,10 +26,12 @@ describe("approval operations migrations", () => {
       prevId: string;
     };
 
-    expect(journal.entries.slice(-2)).toEqual([
+    expect(journal.entries[4]).toEqual(
       expect.objectContaining({ idx: 4, tag: "0004_approval_operations" }),
+    );
+    expect(journal.entries[5]).toEqual(
       expect.objectContaining({ idx: 5, tag: "0005_approval_revalidation" }),
-    ]);
+    );
     expect(snapshot.id).not.toBe(priorSnapshot.id);
     expect(snapshot.prevId).toBe(priorSnapshot.id);
   });

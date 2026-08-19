@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApprovalsClient } from "@/components/hermes/dashboard/approvals-client";
-import { HermesProvider } from "@/lib/hermes-store";
+import { Providers } from "@/app/providers";
 
 const activityResponse = {
   activity: [
@@ -97,9 +97,9 @@ describe("live dashboard gateway data", () => {
     });
 
     render(
-      <HermesProvider>
+      <Providers>
         <ApprovalsClient />
-      </HermesProvider>,
+      </Providers>,
     );
 
     const request = await screen.findByRole("button", {

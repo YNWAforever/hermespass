@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 
 import { AppShell } from "@/components/hermes/app-shell";
 import { SiteShell } from "@/components/marketing/site-shell";
-import { HermesProvider } from "@/lib/hermes-store";
+import { Providers } from "@/app/providers";
 
 describe("shared Next navigation", () => {
   it("uses resolved language destinations", () => {
@@ -41,11 +41,11 @@ describe("shared Next navigation", () => {
   it("keeps exact and prefix dashboard matching distinct", () => {
     navigation.pathname = "/dashboard/agents";
     render(
-      <HermesProvider>
+      <Providers>
         <AppShell>
           <p>dashboard content</p>
         </AppShell>
-      </HermesProvider>,
+      </Providers>,
     );
 
     const agentLink = screen.getByRole("link", { name: /Agent Directory/i });

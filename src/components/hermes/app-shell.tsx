@@ -14,7 +14,6 @@ import {
 import type { ReactNode } from "react";
 import type { Actor } from "@/lib/auth/authorization";
 import { useGatewayActivity } from "@/lib/gateway/client";
-import { useHermes } from "@/lib/hermes-store";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -36,8 +35,7 @@ export function AppShell({ children, actor }: { children: ReactNode; actor?: Act
     role: "owner" as const,
   };
   const pathname = usePathname();
-  const { streaming } = useHermes();
-  const activity = useGatewayActivity(streaming);
+  const activity = useGatewayActivity(true);
   const holds = activity.data?.aggregates.pendingHolds ?? 0;
 
   return (
@@ -113,15 +111,8 @@ export function AppShell({ children, actor }: { children: ReactNode; actor?: Act
             env: production · hk / sg
           </span>
           <span className="ml-auto flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1 text-[11px]">
-            <Radio
-              className={cn(
-                "size-3.5",
-                streaming ? "text-emerald-accent" : "text-muted-foreground",
-              )}
-            />
-            <span className="text-muted-foreground">
-              Gateway {streaming ? "streaming" : "paused"}
-            </span>
+            <Radio className={cn("size-3.5", "text-emerald-accent")} />
+            <span className="text-muted-foreground">Gateway streaming</span>
           </span>
           <Link
             href="/dashboard/approvals"

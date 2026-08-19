@@ -1,0 +1,1 @@
+ALTER TABLE "wallet_cards" ADD COLUMN "provisioning_token" uuid;

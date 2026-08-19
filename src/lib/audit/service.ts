@@ -3,7 +3,6 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { agentAuditLogs, agents } from "@/db/schema";
 import { withActorTransaction } from "@/lib/auth/authorization";
 import type { Actor } from "@/lib/auth/authorization";
-import { buildChain, SEED_EVENTS } from "@/lib/hermes-data";
 
 export type AuditDto = {
   id: number;
@@ -19,18 +18,7 @@ export type AuditDto = {
 };
 
 export function e2eAuditFixture(): AuditDto[] {
-  return buildChain(SEED_EVENTS).map((entry) => ({
-    id: entry.index,
-    timestamp: entry.timestamp,
-    agentDid: entry.agentSlug,
-    agentSlug: entry.agentSlug,
-    action: entry.action,
-    summary: entry.action,
-    payloadHash: entry.payloadHash,
-    previousHash: entry.prevHash,
-    decision: entry.decision,
-    tool: entry.action,
-  }));
+  return [];
 }
 
 function hex(value: Buffer | Uint8Array | null): string {
