@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActorProvider } from "@/components/auth/actor-context";
 import { ApprovalsClient } from "@/components/hermes/dashboard/approvals-client";
-import { HermesProvider } from "@/lib/hermes-store";
+import { Providers } from "@/app/providers";
 
 const requestId = "10000000-0000-4000-8000-000000000001";
 const approvalId = "30000000-0000-4000-8000-000000000001";
@@ -117,11 +117,11 @@ describe("live approval resolution", () => {
       throw new Error(`Unexpected request: ${url}`);
     });
     render(
-      <HermesProvider>
+      <Providers>
         <ActorProvider actor={reviewerActor}>
           <ApprovalsClient />
         </ActorProvider>
-      </HermesProvider>,
+      </Providers>,
     );
 
     await user.click(await screen.findByRole("button", { name: /Approval mutation request/i }));

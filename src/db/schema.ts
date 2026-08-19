@@ -586,6 +586,7 @@ export const walletCards = pgTable(
     currency: text("currency").notNull(),
     status: walletCardStatus("status").notNull().default("provisioning"),
     policyVersion: integer("policy_version").notNull(),
+    provisioningToken: uuid("provisioning_token"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     frozenAt: timestamp("frozen_at", { withTimezone: true }),

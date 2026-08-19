@@ -23,7 +23,11 @@ describe("payment rail configuration", () => {
     expect(configuredPaymentRail()).toBe("stripe");
     expect(requireStripeTestKey).toThrow("PAYMENT_RAIL_TEST_KEY_REQUIRED");
     await expect(
-      activePaymentRail().ensureCardholder({ organizationId, organizationName: "HermesPass" }),
+      activePaymentRail().ensureCardholder({
+        organizationId,
+        organizationName: "HermesPass",
+        idempotencyKey: "hermes-cardholder-test",
+      }),
     ).rejects.toThrow("PAYMENT_RAIL_TEST_KEY_REQUIRED");
   });
 
@@ -99,6 +103,7 @@ describe("deterministic mock payment rail", () => {
       agentSlug: "demo-agent",
       policyVersion: 1,
       currency: "HKD",
+      idempotencyKey: "test-card-create-hkd",
     });
 
     expect(card).toMatchObject({
@@ -120,6 +125,7 @@ describe("deterministic mock payment rail", () => {
         agentSlug: "demo-agent",
         policyVersion: 1,
         currency: "USD",
+        idempotencyKey: "test-card-create-usd",
       }),
     ).rejects.toThrow("PAYMENT_RAIL_CURRENCY_UNSUPPORTED");
   });

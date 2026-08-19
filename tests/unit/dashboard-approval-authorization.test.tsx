@@ -7,7 +7,7 @@ import { ApprovalsClient } from "@/components/hermes/dashboard/approvals-client"
 import type { Actor } from "@/lib/auth/authorization";
 import type { ApprovalDto } from "@/lib/approvals/service";
 import type { GatewayActivityItem } from "@/lib/gateway/activity-types";
-import { HermesProvider } from "@/lib/hermes-store";
+import { Providers } from "@/app/providers";
 
 const requestId = "10000000-0000-4000-8000-000000000001";
 const approvalId = "30000000-0000-4000-8000-000000000001";
@@ -107,9 +107,9 @@ function mockDashboard(approval = pendingApproval, activity = activityItem) {
 function renderDashboard(currentActor: Actor | null) {
   const dashboard = <ApprovalsClient />;
   return render(
-    <HermesProvider>
+    <Providers>
       {currentActor ? <ActorProvider actor={currentActor}>{dashboard}</ActorProvider> : dashboard}
-    </HermesProvider>,
+    </Providers>,
   );
 }
 

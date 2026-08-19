@@ -31,12 +31,17 @@ export type RailCard = {
 
 export interface PaymentRail {
   readonly name: "mock" | "stripe" | "airwallex" | "nium";
-  ensureCardholder(input: { organizationId: string; organizationName: string }): Promise<string>;
+  ensureCardholder(input: {
+    organizationId: string;
+    organizationName: string;
+    idempotencyKey: string;
+  }): Promise<string>;
   createVirtualCard(input: {
     cardholderId: string;
     agentSlug: string;
     policyVersion: number;
     currency: "HKD" | "USD";
+    idempotencyKey: string;
   }): Promise<RailCard>;
   updateCardControls(input: { railCardId: string; policyVersion: number }): Promise<void>;
   setCardStatus(input: { railCardId: string; status: "active" | "inactive" }): Promise<void>;

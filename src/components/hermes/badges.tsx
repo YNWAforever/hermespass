@@ -1,6 +1,6 @@
 import { CheckCircle2, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Decision, PassportStatus, RiskTier } from "@/lib/hermes-data";
+import type { Decision, PassportStatus, RiskTier } from "@/lib/hermes-constants";
 
 export function RiskBadge({ risk, className }: { risk: RiskTier; className?: string }) {
   const map: Record<RiskTier, { label: string; cls: string }> = {

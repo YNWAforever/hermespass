@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DashboardOverviewClient } from "@/components/hermes/dashboard/dashboard-overview-client";
-import { HermesProvider } from "@/lib/hermes-store";
+import { Providers } from "@/app/providers";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -52,9 +52,9 @@ describe("live gateway overview", () => {
     );
 
     render(
-      <HermesProvider>
+      <Providers>
         <DashboardOverviewClient />
-      </HermesProvider>,
+      </Providers>,
     );
 
     expect(await screen.findByText("Authoritative overview activity")).toBeInTheDocument();

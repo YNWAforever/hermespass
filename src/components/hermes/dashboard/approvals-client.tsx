@@ -23,8 +23,6 @@ import { useApprovals, useResolveApproval } from "@/lib/approvals/client";
 import type { ApprovalDecision, ApprovalDto, TelegramDeliveryState } from "@/lib/approvals/service";
 import { useGatewayActivity } from "@/lib/gateway/client";
 import type { GatewayActivityDecision, GatewayActivityItem } from "@/lib/gateway/activity-types";
-import { mockAgentBySlug } from "@/lib/hermes-data";
-import { useHermes } from "@/lib/hermes-store";
 
 function timeOf(timestamp: string) {
   return new Date(timestamp).toISOString().slice(11, 19) + "Z";
@@ -73,7 +71,7 @@ function resolutionLabel(event: GatewayActivityItem, approval: ApprovalDto) {
 }
 
 export function ApprovalsClient() {
-  const { streaming, setStreaming } = useHermes();
+  const [streaming, setStreaming] = useState(true);
   const activityQuery = useGatewayActivity(streaming);
   const approvalsQuery = useApprovals(streaming);
   const { data: agentData } = useAgents();
@@ -400,5 +398,5 @@ function ReviewDrawer({
 }
 
 function findAgent(agents: AgentDto[], slug: string) {
-  return agents.find((agent) => agent.slug === slug) ?? mockAgentBySlug(slug);
+  return agents.find((agent) => agent.slug === slug);
 }

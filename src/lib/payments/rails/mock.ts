@@ -72,6 +72,7 @@ export const mockRail: PaymentRail = {
   name: "mock",
 
   async ensureCardholder(input) {
+    if (!input.idempotencyKey) throw paymentRailError("PAYMENT_RAIL_IDEMPOTENCY_REQUIRED");
     return `mock_cardholder_${input.organizationId}`;
   },
 

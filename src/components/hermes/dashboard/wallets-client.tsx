@@ -1,22 +1,38 @@
 "use client";
 
-import { CreditCard, Lock } from "lucide-react";
+import { CreditCard, Lock, Plus, Unlock } from "lucide-react";
 import { toast } from "sonner";
 
+import { useActor } from "@/components/auth/actor-context";
 import { RiskBadge, StatusBadge } from "@/components/hermes/badges";
 import { PageHeader } from "@/components/hermes/page-header";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { MCC_CATEGORIES, formatHKD, mockAgentBySlug, type Wallet } from "@/lib/hermes-data";
-import { useHermes } from "@/lib/hermes-store";
-import { useAgents } from "@/lib/agents/client";
+import { formatHKD } from "@/lib/hermes-constants";
 import type { AgentDto } from "@/lib/agents/types";
+import type { WalletCardDto } from "@/lib/payments/card-service";
+import {
+  useProvisionCard,
+  useSetWalletStatus,
+  useWalletAgentPolicy,
+  useWalletAgents,
+  useWalletCards,
+} from "@/lib/payments/wallets-client";
 
 export function WalletsClient() {
-  const { wallets } = useHermes();
-  const { data } = useAgents();
-  const agents = data?.agents ?? [];
+  const actor = useActor();
+  const canMutate = !actor || actor.role === "owner" || actor.role === "admin";
+  const walletsQuery = useWalletCards();
+  const agentsQuery = useWalletAgents();
+  const provision = useProvisionCard();
+  const cards = walletsQuery.data?.cards ?? [];
+  const agents = agentsQuery.data?.agents ?? [];
+  const cardAgentIds = new Set(
+    cards.filter((card) => card.status !== "canceled").map((card) => card.agentId),
+  );
+  const availableAgents = agents.filter(
+    (agent) => agent.status === "active" && !cardAgentIds.has(agent.databaseId),
+  );
 
   return (
     <div className="space-y-6">
@@ -26,32 +42,105 @@ export function WalletsClient() {
         description="Each agent carries a virtual card whose cardholder name is its DID. Every authorisation is checked against these ceilings before the network sees it."
       />
 
+      {canMutate && availableAgents.length > 0 ? (
+        <section className="panel p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold">Provision a scoped card</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                An active passport and policy are required. Provider secrets never reach this page.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {availableAgents.map((agent) => (
+              <Button
+                key={agent.databaseId}
+                variant="outline"
+                className="bg-surface"
+                disabled={provision.isPending}
+                onClick={() =>
+                  provision.mutate(agent.databaseId, {
+                    onSuccess: () =>
+                      toast.success("Scoped card provisioned", { description: agent.name }),
+                    onError: (error) =>
+                      toast.error("Unable to provision card", { description: error.message }),
+                  })
+                }
+              >
+                <Plus className="size-4" />
+                {provision.isPending && provision.variables === agent.databaseId
+                  ? "Provisioning…"
+                  : `Provision card for ${agent.name}`}
+              </Button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {walletsQuery.isLoading || agentsQuery.isLoading ? (
+        <p className="panel p-8 text-sm text-muted-foreground">Loading live scoped cards…</p>
+      ) : null}
+      {walletsQuery.error ? (
+        <p role="alert" className="panel p-8 text-sm text-risk-high">
+          Unable to load scoped cards: {walletsQuery.error.message}
+        </p>
+      ) : null}
+      {agentsQuery.error ? (
+        <p role="alert" className="panel p-8 text-sm text-risk-high">
+          Unable to load cardholder agents: {agentsQuery.error.message}
+        </p>
+      ) : null}
+
       <div className="space-y-5">
-        {wallets.map((wallet) => (
-          <WalletRow
-            key={wallet.agentSlug}
-            wallet={wallet}
-            agent={findAgent(agents, wallet.agentSlug)}
-          />
-        ))}
+        {cards
+          .filter((card) => card.status !== "canceled")
+          .map((card) => (
+            <WalletRow
+              key={card.id}
+              card={card}
+              agent={agents.find((agent) => agent.databaseId === card.agentId)}
+              canMutate={canMutate}
+            />
+          ))}
+        {!walletsQuery.isLoading && !walletsQuery.error && cards.length === 0 ? (
+          <p className="panel p-8 text-sm text-muted-foreground">
+            No scoped cards have been provisioned for this organization.
+          </p>
+        ) : null}
       </div>
     </div>
   );
 }
 
 function WalletRow({
-  wallet,
+  card,
   agent,
+  canMutate,
 }: {
-  wallet: Wallet;
-  agent?: AgentDto | ReturnType<typeof mockAgentBySlug>;
+  card: WalletCardDto;
+  agent: AgentDto | undefined;
+  canMutate: boolean;
 }) {
-  const { updateWallet } = useHermes();
-  const agentName = agent?.name;
-  const utilisation = Math.min(
-    100,
-    Math.round((wallet.spentThisMonth / Math.max(1, wallet.monthly)) * 100),
-  );
+  const policyQuery = useWalletAgentPolicy(card.agentId);
+  const setStatus = useSetWalletStatus();
+  const policy = policyQuery.data?.policy;
+  const nextStatus = card.status === "frozen" ? "active" : "frozen";
+  const statusPending = setStatus.isPending && setStatus.variables?.id === card.id;
+
+  function mutateStatus() {
+    setStatus.mutate(
+      { id: card.id, status: nextStatus },
+      {
+        onSuccess: () =>
+          toast.success(nextStatus === "frozen" ? "Card frozen" : "Card unfrozen", {
+            description: `${agent?.name ?? card.agentSlug} status updated.`,
+          }),
+        onError: (error) =>
+          toast.error("Unable to change card status", { description: error.message }),
+      },
+    );
+  }
 
   return (
     <section className="panel grid gap-6 p-5 lg:grid-cols-[22rem_1fr]">
@@ -63,18 +152,20 @@ function WalletRow({
             </span>
             <CreditCard className="size-5 text-cyan-accent" />
           </div>
-          <p className="mt-8 font-mono text-lg tracking-[0.18em]">•••• •••• •••• {wallet.pan}</p>
+          <p className="mt-8 font-mono text-lg tracking-[0.18em]">
+            {card.last4 ? `•••• •••• •••• ${card.last4}` : "Provisioning…"}
+          </p>
           <div className="mt-5 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p className="font-mono text-[9px] tracking-wider text-muted-foreground uppercase">
                 Cardholder (agent DID)
               </p>
               <p className="truncate font-mono text-[11px] text-cyan-accent">
-                {agent?.id ?? wallet.agentSlug}
+                {agent?.id ?? card.agentDid}
               </p>
             </div>
             <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-              {wallet.network}
+              {card.brand ?? "Pending"} · {card.rail}
             </span>
           </div>
         </div>
@@ -82,128 +173,91 @@ function WalletRow({
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {agent ? <StatusBadge status={agent.status} /> : null}
           {agent ? <RiskBadge risk={agent.risk} /> : null}
+          <span className="rounded-full border border-border bg-surface-raised px-2 py-1 text-[10px] tracking-wide uppercase">
+            Card {card.status}
+          </span>
         </div>
-        <p className="mt-3 text-sm font-medium">{agentName ?? wallet.agentSlug}</p>
-        <div className="mt-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
-            <div
-              className="h-full rounded-full bg-emerald-accent"
-              style={{ width: `${utilisation}%` }}
-            />
-          </div>
-          <p className="mt-1.5 font-mono text-[11px] text-muted-foreground">
-            {formatHKD(wallet.spentThisMonth)} of {formatHKD(wallet.monthly)} monthly ({utilisation}
-            %)
-          </p>
-        </div>
+        <p className="mt-3 text-sm font-medium">{agent?.name ?? card.agentSlug}</p>
+        <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+          Spend to date: — · {card.currency} · policy v{card.policyVersion}
+        </p>
       </div>
 
       <div className="space-y-6">
-        <CapSlider
-          label="Per-transaction limit"
-          value={wallet.perTx}
-          max={50000}
-          step={100}
-          onChange={(value) => updateWallet(wallet.agentSlug, { perTx: value })}
-        />
-        <CapSlider
-          label="Daily limit"
-          value={wallet.daily}
-          max={100000}
-          step={500}
-          onChange={(value) => updateWallet(wallet.agentSlug, { daily: value })}
-        />
-        <CapSlider
-          label="Monthly limit"
-          value={wallet.monthly}
-          max={400000}
-          step={1000}
-          onChange={(value) => updateWallet(wallet.agentSlug, { monthly: value })}
-        />
-
-        <div>
-          <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
-            Merchant category whitelist (MCC)
+        {policyQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading active policy…</p>
+        ) : policy ? (
+          <>
+            <CapSlider
+              label="Per-transaction limit"
+              value={policy.perTransactionLimitCents / 100}
+              max={50000}
+            />
+            <CapSlider label="Daily limit" value={policy.dailyLimitCents / 100} max={100000} />
+            <CapSlider label="Monthly limit" value={policy.monthlyLimitCents / 100} max={400000} />
+            <div>
+              <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                Merchant category whitelist (MCC)
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {policy.mccAllowlist.length > 0 ? (
+                  policy.mccAllowlist.map((mcc) => (
+                    <span
+                      key={mcc}
+                      className="rounded border border-border bg-background/50 px-3 py-2 font-mono text-xs"
+                    >
+                      {mcc}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">No MCC restriction</span>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-risk-medium">
+            No active policy is attached to this cardholder.
           </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {MCC_CATEGORIES.map((category) => {
-              const enabled = wallet.mcc.includes(category);
-
-              return (
-                <label
-                  key={category}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/50 px-3 py-2 text-sm"
-                >
-                  <span className={enabled ? "" : "text-muted-foreground"}>{category}</span>
-                  <Switch
-                    checked={enabled}
-                    onCheckedChange={(checked) =>
-                      updateWallet(wallet.agentSlug, {
-                        mcc: checked
-                          ? [...wallet.mcc, category]
-                          : wallet.mcc.filter((value) => value !== category),
-                      })
-                    }
-                  />
-                </label>
-              );
-            })}
-          </div>
-        </div>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <p className="text-xs text-muted-foreground">
-            Limits apply at authorisation time via the AP2 payment mandate.
+            Edit limits and MCC controls in the Agent Directory policy dialog.
           </p>
-          <Button
-            variant="outline"
-            className="bg-surface"
-            onClick={() => {
-              updateWallet(wallet.agentSlug, { perTx: 0, daily: 0 });
-              toast.error("Card frozen", {
-                description: `${agentName ?? wallet.agentSlug} can no longer authorise payments.`,
-              });
-            }}
-          >
-            <Lock className="size-4" />
-            Freeze card
-          </Button>
+          {canMutate && (card.status === "active" || card.status === "frozen") ? (
+            <Button
+              variant="outline"
+              className="bg-surface"
+              disabled={statusPending}
+              onClick={mutateStatus}
+            >
+              {nextStatus === "frozen" ? (
+                <Lock className="size-4" />
+              ) : (
+                <Unlock className="size-4" />
+              )}
+              {statusPending
+                ? "Updating…"
+                : nextStatus === "frozen"
+                  ? "Freeze card"
+                  : "Unfreeze card"}
+            </Button>
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
 
-function findAgent(agents: AgentDto[], slug: string) {
-  return agents.find((agent) => agent.slug === slug) ?? mockAgentBySlug(slug);
-}
-
-function CapSlider({
-  label,
-  value,
-  max,
-  step,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  max: number;
-  step: number;
-  onChange: (value: number) => void;
-}) {
+function CapSlider({ label, value, max }: { label: string; value: number; max: number }) {
   return (
     <div>
       <div className="flex items-center justify-between">
         <p className="text-sm">{label}</p>
         <p className="font-mono text-sm font-semibold text-emerald-accent">{formatHKD(value)}</p>
       </div>
-      <Slider
-        className="mt-3"
-        value={[value]}
-        max={max}
-        step={step}
-        onValueChange={([nextValue]) => onChange(nextValue ?? 0)}
-      />
+      <Slider className="mt-3" value={[value]} max={max} disabled />
     </div>
   );
 }

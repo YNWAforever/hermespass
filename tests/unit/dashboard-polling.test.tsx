@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApprovalsClient } from "@/components/hermes/dashboard/approvals-client";
-import { HermesProvider } from "@/lib/hermes-store";
+import { Providers } from "@/app/providers";
 
 const emptyActivity = {
   activity: [],
@@ -35,9 +35,9 @@ describe("live dashboard polling", () => {
     });
 
     render(
-      <HermesProvider>
+      <Providers>
         <ApprovalsClient />
-      </HermesProvider>,
+      </Providers>,
     );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);

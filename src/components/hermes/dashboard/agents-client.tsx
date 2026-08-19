@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { TOOL_SCOPES, formatHKD, type RiskTier } from "@/lib/hermes-data";
+import { TOOL_SCOPES, formatHKD, type RiskTier } from "@/lib/hermes-constants";
 import type { AgentDto } from "@/lib/agents/types";
 import { useAgents, useIssueAgent, useRevokeAgent } from "@/lib/agents/client";
 

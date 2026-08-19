@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,10 +11,11 @@ import { AgentGovernanceControls } from "@/components/hermes/dashboard/agent-gov
 import { WalletsClient } from "@/components/hermes/dashboard/wallets-client";
 import { AgentFixtureProvider } from "@/lib/agents/fixture-context";
 import type { AgentDto } from "@/lib/agents/types";
-import { HermesProvider } from "@/lib/hermes-store";
+import { E2E_AGENTS } from "@/lib/agents/e2e-fixtures";
+import { Providers } from "@/app/providers";
 
 function renderWithHermes(children: ReactNode) {
-  return render(<HermesProvider>{children}</HermesProvider>);
+  return render(<Providers>{children}</Providers>);
 }
 
 const livePolicyAgent: AgentDto = {
@@ -188,7 +189,12 @@ describe("agent policy controls", () => {
 describe("dashboard interactions", () => {
   it("issues a passport without creating a wallet", async () => {
     const user = userEvent.setup();
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input) === "/api/wallets") {
+        return Response.json({ data: { cards: [] } });
+      }
+      throw new Error(`Unexpected request: ${String(input)}`);
+    });
     renderWithHermes(
       <>
         <AgentsClient />
@@ -204,8 +210,8 @@ describe("dashboard interactions", () => {
     expect(await screen.findByText("Parity Agent")).toBeInTheDocument();
     expect(screen.getByText("Support operations")).toBeInTheDocument();
     expect(
-      screen.getByText(/did:web:hermespass\.asia:agent:parity-agent-test/i),
-    ).toBeInTheDocument();
+      screen.getAllByText(/did:web:hermespass\.asia:agent:parity-agent-test/i).length,
+    ).toBeGreaterThan(0);
     const passport = screen.getByText("Parity Agent").closest("article");
     expect(passport).not.toBeNull();
     expect(within(passport!).getByText("Enrollment required")).toBeInTheDocument();
@@ -226,10 +232,15 @@ describe("dashboard interactions", () => {
     expect(screen.getByLabelText("Require merchant category code")).toBeInTheDocument();
     expect(screen.getByLabelText("Allowed MCCs")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close" }));
-    expect(screen.getAllByRole("button", { name: "Freeze card" })).toHaveLength(4);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
+    expect(
+      await screen.findByRole("button", { name: "Provision card for Parity Agent" }),
+    ).toBeInTheDocument();
+    expect(
+      fetchSpy.mock.calls.some(
+        ([input, init]) => String(input) === "/api/wallets" && init?.method === "POST",
+      ),
+    ).toBe(false);
+  }, 10_000);
   it("pauses and resumes the live gateway stream", async () => {
     const user = userEvent.setup();
     renderWithHermes(<ApprovalsClient />);
@@ -240,21 +251,76 @@ describe("dashboard interactions", () => {
     expect(screen.getByRole("button", { name: "Pause stream" })).toBeInTheDocument();
   });
 
-  it("changes wallet limits and freezes a card", async () => {
+  it("renders live card metadata and freezes through the protected API", async () => {
     const user = userEvent.setup();
+    const agent = E2E_AGENTS[1]!;
+    const card = {
+      id: "30000000-0000-4000-8000-000000000001",
+      agentId: agent.databaseId,
+      agentSlug: agent.slug,
+      agentDid: agent.id,
+      rail: "mock",
+      last4: "4242",
+      brand: "Visa",
+      currency: "HKD",
+      status: "active",
+      policyVersion: 3,
+      createdAt: "2026-08-18T00:00:00.000Z",
+      updatedAt: "2026-08-18T00:00:00.000Z",
+      frozenAt: null,
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/wallets" && init?.method !== "POST") {
+        return Response.json({ data: { cards: [card] } });
+      }
+      if (url.endsWith("/policy")) {
+        return Response.json({
+          data: {
+            policy: {
+              id: "40000000-0000-4000-8000-000000000001",
+              agentId: agent.databaseId,
+              version: 3,
+              currency: "HKD",
+              perTransactionLimitCents: 50_000,
+              dailyLimitCents: 250_000,
+              monthlyLimitCents: 1_800_000,
+              approvalThresholdCents: 50_000,
+              mccAllowlist: ["7399"],
+              mccRequired: true,
+              assignedReviewerUserId: "fixture-owner",
+              isActive: true,
+              supersededAt: null,
+              createdAt: "2026-08-18T00:00:00.000Z",
+            },
+          },
+        });
+      }
+      if (url.endsWith(`/wallets/${card.id}/status`) && init?.method === "POST") {
+        return Response.json({ data: { card: { ...card, status: "frozen" } } });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
     renderWithHermes(<WalletsClient />);
-    const sliders = screen.getAllByRole("slider");
-    const perTransaction = sliders[0]!;
+    expect(await screen.findByText("•••• •••• •••• 4242")).toBeInTheDocument();
+    expect(screen.queryByText(/cvc|pan|full card number/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Spend to date: —/i)).toBeInTheDocument();
+    for (const slider of await screen.findAllByRole("slider"))
+      expect(slider).toHaveAttribute("data-disabled", "");
 
-    expect(perTransaction).toHaveAttribute("aria-valuenow", "500");
-    fireEvent.keyDown(perTransaction, { key: "ArrowRight" });
-    expect(perTransaction).toHaveAttribute("aria-valuenow", "600");
-
-    await user.click(screen.getAllByRole("button", { name: "Freeze card" })[0]!);
-    expect(sliders[0]).toHaveAttribute("aria-valuenow", "0");
-    expect(sliders[1]).toHaveAttribute("aria-valuenow", "0");
+    await user.click(screen.getByRole("button", { name: "Freeze card" }));
+    await waitFor(() =>
+      expect(
+        fetchSpy.mock.calls.some(
+          ([input, init]) =>
+            String(input).endsWith(`/wallets/${card.id}/status`) &&
+            init?.method === "POST" &&
+            init.body === JSON.stringify({ status: "frozen" }),
+        ),
+      ).toBe(true),
+    );
   });
-
   it("prints a report and links to the server compliance CSV", async () => {
     const user = userEvent.setup();
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);

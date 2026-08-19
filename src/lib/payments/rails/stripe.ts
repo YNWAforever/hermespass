@@ -122,24 +122,33 @@ export function createStripePaymentRail(): PaymentRail {
 
     async ensureCardholder(input) {
       const stripe = stripeClient();
-      const cardholder = await stripe.issuing.cardholders.create({
-        name: input.organizationName,
-        type: "company",
-        billing: { address: { country: "HK" } },
-        metadata: safeMetadata({ organizationId: input.organizationId }),
-      } as Stripe.Issuing.CardholderCreateParams);
+      const cardholder = await stripe.issuing.cardholders.create(
+        {
+          name: input.organizationName,
+          type: "company",
+          billing: { address: { country: "HK" } },
+          metadata: safeMetadata({ organizationId: input.organizationId }),
+        } as Stripe.Issuing.CardholderCreateParams,
+        { idempotencyKey: input.idempotencyKey },
+      );
       if (!cardholder.id) throw responseError();
       return cardholder.id;
     },
 
     async createVirtualCard(input) {
       const stripe = stripeClient();
-      const card = await stripe.issuing.cards.create({
-        cardholder: input.cardholderId,
-        currency: input.currency.toLowerCase(),
-        type: "virtual",
-        metadata: safeMetadata({ agentSlug: input.agentSlug, policyVersion: input.policyVersion }),
-      } as Stripe.Issuing.CardCreateParams);
+      const card = await stripe.issuing.cards.create(
+        {
+          cardholder: input.cardholderId,
+          currency: input.currency.toLowerCase(),
+          type: "virtual",
+          metadata: safeMetadata({
+            agentSlug: input.agentSlug,
+            policyVersion: input.policyVersion,
+          }),
+        } as Stripe.Issuing.CardCreateParams,
+        { idempotencyKey: input.idempotencyKey },
+      );
       const last4 = typeof card.last4 === "string" ? card.last4 : "";
       if (!card.id || !/^\d{4}$/.test(last4)) throw responseError();
       const brand =
