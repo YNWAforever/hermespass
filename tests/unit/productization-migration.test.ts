@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../..");
 const migration = resolve(root, "drizzle/0013_productization_core.sql");
+const publicVerificationMigration = resolve(root, "drizzle/0014_public_verification.sql");
 const journal = resolve(root, "drizzle/meta/_journal.json");
 
 describe("productization migration contract", () => {
@@ -28,7 +29,17 @@ describe("productization migration contract", () => {
       "0011_payment_authorization_boundary",
       "0012_insurance_lifecycle",
     ]);
-    expect(entries.at(-1)).toMatchObject({ idx: 13, tag: "0013_productization_core" });
+    expect(entries.at(-2)).toMatchObject({ idx: 13, tag: "0013_productization_core" });
+    expect(entries.at(-1)).toMatchObject({ idx: 14, tag: "0014_public_verification" });
+  });
+
+  it("adds the restricted API-key revoke boundary without rewriting core SQL", () => {
+    expect(existsSync(publicVerificationMigration)).toBe(true);
+    const sql = readFileSync(publicVerificationMigration, "utf8");
+    expect(sql).toContain("hermes_revoke_api_key");
+    expect(sql).toContain("SECURITY DEFINER");
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.hermes_revoke_api_key");
+    expect(sql).not.toMatch(/DROP TABLE|DROP FUNCTION/i);
   });
 
   it("keeps the pooled role and RLS fail-closed", () => {
@@ -50,7 +61,7 @@ describe("productization migration contract", () => {
       "billing_events",
       "agent_messages",
     ]) {
-      expect(sql).toMatch(new RegExp(`CREATE TABLE (?:public\\.)?"?${table}"?`));
+      expect(sql).toMatch(new RegExp('CREATE TABLE (?:public\\.)?"?' + table + '"?'));
     }
     expect(sql).toContain("token_hash");
     expect(sql).toContain("payload_digest");

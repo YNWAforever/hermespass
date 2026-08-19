@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Pool, type PoolClient } from "pg";
@@ -15,7 +15,7 @@ if (databaseRequired) {
 
 const migrationDir = join(process.cwd(), "drizzle");
 const migrationPaths = readdirSync(migrationDir)
-  .filter((name) => /^00(0[0-9]|1[0-3])_.*\.sql$/.test(name))
+  .filter((name) => /^00(0[0-9]|1[0-4])_.*\.sql$/.test(name))
   .sort()
   .map((name) => join(migrationDir, name));
 

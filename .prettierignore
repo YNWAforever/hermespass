@@ -5,3 +5,6 @@ package-lock.json
 bun.lock
 docs/superpowers/plans/
 .codebase-memory/
+
+# Drizzle metadata is generated JSON; schema migrations remain validated by drizzle-kit.
+drizzle/meta/*.json

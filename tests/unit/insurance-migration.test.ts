@@ -11,7 +11,7 @@ describe("insurance lifecycle migration contract", () => {
     const journal = JSON.parse(await readFile(journalPath, "utf8")) as {
       entries: Array<{ idx: number; tag: string }>;
     };
-    expect(journal.entries.at(-1)).toEqual(
+    expect(journal.entries.find((entry) => entry.idx === 12)).toEqual(
       expect.objectContaining({ tag: "0012_insurance_lifecycle" }),
     );
   });

@@ -147,6 +147,35 @@ export function errorResponse(request: Request, error: unknown): Response {
       402,
     );
 
+  if (message === "API_KEY_REQUIRED" || message === "API_KEY_INVALID")
+    return jsonError(request, message, "A valid HermesPass API key is required.", 401);
+  if (message === "API_KEY_RATE_LIMITED") {
+    const retryAfterSeconds = Number(
+      (error as { retryAfterSeconds?: number }).retryAfterSeconds ?? 60,
+    );
+    return Response.json(
+      {
+        error: {
+          code: message,
+          message: "API key rate limit exceeded.",
+          retryAfterSeconds,
+          requestId: id,
+        },
+      },
+      { status: 429, headers: { "retry-after": String(retryAfterSeconds) } },
+    );
+  }
+  if (message === "API_KEY_NAME_INVALID")
+    return jsonError(request, message, "The API key name is invalid.", 400);
+  if (message === "API_KEY_NOT_FOUND")
+    return jsonError(request, message, "API key not found.", 404);
+  if (message === "API_KEY_UNAVAILABLE")
+    return jsonError(request, message, "The API key service is temporarily unavailable.", 503);
+  if (message === "DID_INVALID")
+    return jsonError(request, message, "Only a valid did:web identifier is supported.", 400);
+  if (message === "PAYLOAD_TOO_LARGE")
+    return jsonError(request, message, "The request is too large.", 413);
+
   if (message === "AGENT_NOT_FOUND")
     return Response.json(
       { error: { code: message, message: "Agent not found.", requestId: id } },
