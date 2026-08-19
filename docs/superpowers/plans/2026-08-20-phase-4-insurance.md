@@ -394,18 +394,21 @@ Expected: no lockfile/schema diff; all existing route/dashboard/visual checks re
 - [ ] **Step 3: Run static scope checks.**
 
 ```powershell
-rg -n "supabase|supabaseAdmin|insurance.*payment|gateway.*insurance" src drizzle tests
+$supabase = @(rg -n 'from ["'']@/.*supabase|supabaseAdmin|supabaseServer' src/lib/insurance src/app/api/insurance -g '*.ts' -g '*.tsx' -g '!tests/**')
+if ($supabase.Count -ne 0) { $supabase }
+$paymentCoupling = @(rg -n 'insurance' src/lib/payments src/lib/gateway -g '*.ts' -g '*.tsx')
+if ($paymentCoupling.Count -ne 0) { $paymentCoupling }
 ```
 
-Expected: no Supabase imports; insurance code is absent from payment authorization/gateway decision paths. Provider names may appear only in the adapter type and deferred configuration error.
+Expected: both arrays are empty. Provider names may appear only in the insurance adapter type and deferred configuration error.
 
 - [ ] **Step 4: Independent review and commit.**
 
 Run `git diff --check`, inspect the staged file list, obtain a read-only review, then commit:
 
 ```powershell
-git add drizzle src tests docs/release/phase-4-gates.md
- git commit -m "feat(insurance): complete Neon mock-insurer lifecycle"
+git add drizzle/0012_insurance_lifecycle.sql drizzle/meta/0012_snapshot.json drizzle/meta/_journal.json src/db/schema.ts src/lib/env.ts src/lib/insurance src/app/api/insurance tests/unit/insurance-migration.test.ts tests/unit/insurance.test.ts tests/unit/insurance-service.test.ts tests/unit/insurance-route.test.ts tests/unit/insurance-webhook.test.ts tests/integration/postgres.insurance.integration.test.ts tests/e2e/insurance.spec.ts docs/release/phase-4-gates.md
+git commit -m "feat(insurance): complete Neon mock-insurer lifecycle"
 ```
 
 Record RED/GREEN results, final SHA, local PG18 cleanup, and the fact that hosted/provider/release gates remain untouched in `.superpowers/sdd/task-8-report.md` and `.superpowers/sdd/progress.md`.
