@@ -28,6 +28,12 @@ export function hasNeonAuthConfig(): boolean {
   return Boolean(process.env["NEON_AUTH_BASE_URL"] && process.env["NEON_AUTH_COOKIE_SECRET"]);
 }
 
+export function insuranceWebhookSecret(): string {
+  const value = process.env["INSURANCE_WEBHOOK_SECRET"];
+  if (!value) throw new Error("INSURANCE_WEBHOOK_SECRET is required for insurance operations");
+  return value;
+}
+
 export function keyEnvironment(): KeyEnvironment {
   const value = process.env["HERMES_KEY_ENVIRONMENT"] ?? process.env["VERCEL_ENV"] ?? "development";
   if (value === "production" || value === "preview" || value === "development") return value;

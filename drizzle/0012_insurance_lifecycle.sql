@@ -400,9 +400,21 @@ DECLARE
   agent_id_value uuid;
   new_status public.insurance_status;
   expires_value timestamptz;
+  payload_digest_value bytea;
 BEGIN
   IF pg_catalog.current_setting('hermes.insurance_worker', true) IS DISTINCT FROM '1' THEN RAISE EXCEPTION 'insurance worker claim required' USING ERRCODE='42501'; END IF;
-  IF org_id IS NULL OR provider_event_id_value IS NULL OR provider_policy_id IS NULL THEN RAISE EXCEPTION 'insurance provider event is invalid' USING ERRCODE='22023'; END IF;
+  IF provider_event_id_value IS NULL OR provider_policy_id IS NULL THEN RAISE EXCEPTION 'insurance provider event is invalid' USING ERRCODE='22023'; END IF;
+  IF org_id IS NULL THEN
+    SELECT p.organization_id INTO org_id
+    FROM public.insurance_policies p
+    WHERE p.insurer = insurer_value AND p.insurer_policy_id = provider_policy_id
+    LIMIT 1;
+  END IF;
+  IF org_id IS NULL THEN RETURN false; END IF;
+  IF p_payload ? 'payloadDigest' THEN
+    IF (p_payload->>'payloadDigest') !~ '^[0-9a-fA-F]{64}$' THEN RAISE EXCEPTION 'insurance provider event is invalid' USING ERRCODE='22023'; END IF;
+    payload_digest_value := decode(p_payload->>'payloadDigest', 'hex');
+  END IF;
   IF EXISTS (SELECT 1 FROM public.insurance_policy_events e WHERE e.insurer=insurer_value AND e.provider_event_id=provider_event_id_value) THEN RETURN false; END IF;
   SELECT p.agent_id INTO agent_id_value FROM public.insurance_policies p WHERE p.organization_id=org_id AND p.insurer=insurer_value AND p.insurer_policy_id=provider_policy_id LIMIT 1;
   IF agent_id_value IS NULL THEN RETURN false; END IF;
@@ -414,7 +426,7 @@ BEGIN
   expires_value := COALESCE((p_payload->>'expiresAt')::timestamptz, policy.expires_at);
   UPDATE public.insurance_policies SET status=new_status, expires_at=CASE WHEN new_status='active' THEN expires_value ELSE expires_at END, updated_at=pg_catalog.clock_timestamp() WHERE id=policy.id RETURNING * INTO policy;
   INSERT INTO public.insurance_policy_events(organization_id, policy_id, agent_id, insurer, provider_event_id, event_kind, actor_type, actor_id, summary, payload, payload_digest, effective_at)
-  VALUES (org_id, policy.id, policy.agent_id, insurer_value, provider_event_id_value, kind, 'system', 'insurance-worker', 'Insurance provider event applied', jsonb_build_object('providerEventId', provider_event_id_value, 'eventKind', kind::text), public.digest(pg_catalog.convert_to(p_payload::text,'UTF8'),'sha256'), effective_value);
+  VALUES (org_id, policy.id, policy.agent_id, insurer_value, provider_event_id_value, kind, 'system', 'insurance-worker', 'Insurance provider event applied', jsonb_build_object('providerEventId', provider_event_id_value, 'eventKind', kind::text), COALESCE(payload_digest_value, public.digest(pg_catalog.convert_to(p_payload::text,'UTF8'),'sha256')), effective_value);
   PERFORM public.hermes_insurance_append_audit(org_id, policy.agent_id, 'insurance.' || kind::text, 'Insurance provider event applied', jsonb_build_object('policyId', policy.id, 'providerEventId', provider_event_id_value));
   RETURN true;
 END

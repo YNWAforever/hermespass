@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import canonicalize from "canonicalize";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -246,12 +248,22 @@ dbTest("insurance lifecycle schema and runtime functions", () => {
     });
 
     const eventPayload = {
-      organizationId,
       insurer: "mock",
       insurerPolicyId: "mockp_insurance_1",
       providerEventId: "evt-lapse-1",
       eventKind: "lapsed",
       effectiveAt: now.toISOString(),
+      payloadDigest: createHash("sha256")
+        .update(
+          canonicalize({
+            eventId: "evt-lapse-1",
+            insurer: "mock",
+            insurerPolicyId: "mockp_insurance_1",
+            event: "lapsed",
+            effectiveAt: now.toISOString(),
+          }) ?? "",
+        )
+        .digest("hex"),
     };
     await expect(
       asWorker(pool, async (client) =>
@@ -260,6 +272,11 @@ dbTest("insurance lifecycle schema and runtime functions", () => {
         ]),
       ),
     ).resolves.toMatchObject({ rows: [{ hermes_insurance_provider_event: true }] });
+    const storedDigest = await pool.query(
+      "SELECT encode(payload_digest, 'hex') AS digest FROM public.insurance_policy_events WHERE provider_event_id = $1",
+      [eventPayload.providerEventId],
+    );
+    expect(storedDigest.rows[0].digest).toBe(eventPayload.payloadDigest);
     await expect(
       asWorker(pool, async (client) =>
         client.query("SELECT public.hermes_insurance_provider_event($1::jsonb)", [

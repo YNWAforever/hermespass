@@ -83,6 +83,13 @@ export function errorResponse(request: Request, error: unknown): Response {
     return jsonError(request, "INSURANCE_BIND_STALE", "The insurance bind attempt is stale.", 409);
   if (message === "INSURANCE_POLICY_INVALID")
     return jsonError(request, message, "The insurance policy cannot be bound.", 400);
+  if (message === "INSURANCE_WEBHOOK_SECRET is required for insurance operations")
+    return jsonError(
+      request,
+      "INSURANCE_WEBHOOK_UNAVAILABLE",
+      "Insurance webhook configuration is unavailable.",
+      503,
+    );
   if (message === "INSURANCE_BIND_UNAVAILABLE")
     return jsonError(request, message, "The insurance binding service is unavailable.", 503);
   if (message === "AGENT_AUTH_FAILED")
