@@ -4,16 +4,19 @@ const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(),
   listPolicies: vi.fn(),
   quote: vi.fn(),
+  bind: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/authorization", () => ({ requireActor: mocks.requireActor }));
 vi.mock("@/lib/insurance/service", () => ({
   listPolicies: mocks.listPolicies,
   quote: mocks.quote,
+  bind: mocks.bind,
 }));
 
 import { GET } from "@/app/api/insurance/policies/route";
 import { POST } from "@/app/api/insurance/quote/route";
+import { POST as bindPost } from "@/app/api/insurance/bind/route";
 
 const actor = {
   userId: "owner-1",
@@ -30,9 +33,11 @@ describe("insurance routes", () => {
     mocks.requireActor.mockReset();
     mocks.listPolicies.mockReset();
     mocks.quote.mockReset();
+    mocks.bind.mockReset();
     mocks.requireActor.mockResolvedValue(actor);
     mocks.listPolicies.mockResolvedValue([]);
     mocks.quote.mockResolvedValue({ id: "p-1", status: "quoted" });
+    mocks.bind.mockResolvedValue({ id: "p-1", status: "active" });
   });
 
   it("returns the authenticated policy list envelope", async () => {
@@ -54,6 +59,18 @@ describe("insurance routes", () => {
     );
     expect(response.status).toBe(200);
     expect(mocks.quote).toHaveBeenCalledWith(actor, "22222222-2222-4222-8222-222222222222");
+  });
+
+  it("binds by policy id and never returns an attempt token", async () => {
+    const response = await bindPost(
+      new Request("http://localhost/api/insurance/bind", {
+        method: "POST",
+        body: JSON.stringify({ policyId: "33333333-3333-4333-8333-333333333333" }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { policy: { id: "p-1", status: "active" } } });
+    expect(mocks.bind).toHaveBeenCalledWith(actor, "33333333-3333-4333-8333-333333333333");
   });
 
   it("rejects malformed and oversized quote bodies", async () => {

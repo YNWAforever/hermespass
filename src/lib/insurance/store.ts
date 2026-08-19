@@ -103,6 +103,45 @@ export async function listInsurancePolicies(
   return result.rows.map((row) => mapInsurancePolicy(row as Row));
 }
 
+export async function reserveInsuranceBind(
+  tx: Transaction,
+  policyId: string,
+  attemptId: string,
+  expiresAt: string,
+): Promise<InsurancePolicyDto> {
+  const result = await tx.execute(sql`
+    SELECT * FROM public.hermes_insurance_bind_reserve(
+      ${policyId}::uuid, ${attemptId}::uuid, ${expiresAt}::timestamptz
+    )
+  `);
+  const row = result.rows[0] as Row | undefined;
+  if (!row) throw new Error("INSURANCE_BIND_RESERVATION_FAILED");
+  return mapInsurancePolicy(row);
+}
+
+export async function finalizeInsuranceBind(
+  tx: Transaction,
+  input: {
+    policyId: string;
+    attemptId: string;
+    insurerPolicyId: string;
+    boundAt: string;
+    expiresAt: string;
+  },
+): Promise<InsurancePolicyDto> {
+  const result = await tx.execute(sql`
+    SELECT * FROM public.hermes_insurance_bind_finalize(
+      ${input.policyId}::uuid,
+      ${input.attemptId}::uuid,
+      ${input.insurerPolicyId},
+      ${input.boundAt}::timestamptz,
+      ${input.expiresAt}::timestamptz
+    )
+  `);
+  const row = result.rows[0] as Row | undefined;
+  if (!row) throw new Error("INSURANCE_BIND_FINALIZATION_FAILED");
+  return mapInsurancePolicy(row);
+}
 export async function insertInsuranceQuote(
   tx: Transaction,
   input: {

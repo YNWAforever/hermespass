@@ -291,4 +291,76 @@ dbTest("insurance lifecycle schema and runtime functions", () => {
     );
     expect(otherList.rows).toHaveLength(0);
   });
+
+  it("fences stale bind workers and keeps one commission row", async () => {
+    const staleAgentId = crypto.randomUUID();
+    const staleNow = new Date();
+    await pool.query(
+      "INSERT INTO public.agents (id, organization_id, slug, did, name, role, risk, scopes, spend_cap_cents, status, credential_id, credential_jws, issued_at, expires_at, created_by) VALUES ($1, $2, $3, $4, 'Stale Agent', 'operator', 'low', ARRAY['catalog.read']::text[], 100000, 'active', $5, 'test', $6, $7, $8)",
+      [
+        staleAgentId,
+        organizationId,
+        `stale-${crypto.randomUUID()}`,
+        `did:web:insurance:stale:${crypto.randomUUID()}`,
+        `credential-${crypto.randomUUID()}`,
+        staleNow,
+        new Date(staleNow.getTime() + 86400000),
+        ownerId,
+      ],
+    );
+    const quote = await asApp(pool, ownerId, async (client) =>
+      client.query("SELECT * FROM public.hermes_insurance_quote_insert($1::jsonb)", [
+        JSON.stringify({
+          organizationId,
+          agentId: staleAgentId,
+          insurerQuoteId: `mockq_stale_${crypto.randomUUID()}`,
+          coverageCents: 50000000,
+          premiumCents: 8000,
+          quotedAt: staleNow.toISOString(),
+          expiresAt: new Date(staleNow.getTime() + 7 * 86400000).toISOString(),
+        }),
+      ]),
+    );
+    const policyId = quote.rows[0].id as string;
+    const attemptOne = crypto.randomUUID();
+    const attemptTwo = crypto.randomUUID();
+    await asApp(pool, ownerId, async (client) =>
+      client.query("SELECT * FROM public.hermes_insurance_bind_reserve($1, $2, $3)", [
+        policyId,
+        attemptOne,
+        new Date(staleNow.getTime() + 60000),
+      ]),
+    );
+    await pool.query(
+      "UPDATE public.insurance_policies SET bind_attempt_expires_at = now() - interval '1 second' WHERE id = $1",
+      [policyId],
+    );
+    await asApp(pool, ownerId, async (client) =>
+      client.query("SELECT * FROM public.hermes_insurance_bind_reserve($1, $2, $3)", [
+        policyId,
+        attemptTwo,
+        new Date(Date.now() + 60000),
+      ]),
+    );
+    await expect(
+      asApp(pool, ownerId, async (client) =>
+        client.query(
+          "SELECT * FROM public.hermes_insurance_bind_finalize($1, $2, 'mockp_stale_old', $3, $4)",
+          [policyId, attemptOne, staleNow, new Date(staleNow.getTime() + 365 * 86400000)],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "P0002" });
+    const active = await asApp(pool, ownerId, async (client) =>
+      client.query(
+        "SELECT * FROM public.hermes_insurance_bind_finalize($1, $2, 'mockp_stale_new', $3, $4)",
+        [policyId, attemptTwo, new Date(), new Date(Date.now() + 365 * 86400000)],
+      ),
+    );
+    expect(active.rows[0].status).toBe("active");
+    const ledger = await pool.query(
+      "SELECT count(*)::int AS count FROM public.insurance_commission_ledger WHERE policy_id = $1",
+      [policyId],
+    );
+    expect(ledger.rows[0].count).toBe(1);
+  });
 });

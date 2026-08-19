@@ -126,6 +126,87 @@ describe("insurance service", () => {
     expect(adapter.quote).not.toHaveBeenCalled();
   });
 
+  it("reserves, calls the insurer outside the transaction, and finalizes the current attempt", async () => {
+    const tx = {};
+    const reservation = policyRow({ status: "binding", insurerQuoteId: "mockq_demo" });
+    const active = policyRow({
+      status: "active",
+      insurerQuoteId: "mockq_demo",
+      insurerPolicyId: "mockp_demo",
+      boundAt: "2026-08-20T00:00:00.000Z",
+      expiresAt: "2027-08-20T00:00:00.000Z",
+    });
+    const withActorTransaction = vi.fn(
+      async (_actor: Actor, callback: (value: typeof tx) => Promise<unknown>) => callback(tx),
+    ) as unknown as InsuranceServicePorts["withActorTransaction"];
+    const reserveBind = vi.fn().mockResolvedValue(reservation);
+    const finalizeBind = vi.fn().mockResolvedValue(active);
+    const bind = vi
+      .fn()
+      .mockResolvedValue({
+        insurerPolicyId: "mockp_demo",
+        boundAt: "2026-08-20T00:00:00.000Z",
+        expiresAt: "2027-08-20T00:00:00.000Z",
+      });
+    const service = createInsuranceService({
+      withActorTransaction,
+      getAgentContext: vi.fn(),
+      insertQuote: vi.fn(),
+      listPolicies: vi.fn(),
+      reserveBind,
+      finalizeBind,
+      adapter: { name: "mock", quote: vi.fn(), bind },
+    });
+
+    await expect(service.bind(actor, reservation.id)).resolves.toMatchObject({
+      status: "active",
+      insurerPolicyId: "mockp_demo",
+    });
+    expect(reserveBind).toHaveBeenCalledWith(
+      tx,
+      reservation.id,
+      expect.any(String),
+      expect.any(String),
+    );
+    expect(bind).toHaveBeenCalledWith({
+      quoteId: "mockq_demo",
+      idempotencyKey: `insurance-bind:${reservation.id}`,
+    });
+    expect(finalizeBind).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        policyId: reservation.id,
+        attemptId: expect.any(String),
+        insurerPolicyId: "mockp_demo",
+      }),
+    );
+  });
+
+  it("returns an already active policy without calling the insurer", async () => {
+    const active = policyRow({
+      status: "active",
+      insurerPolicyId: "mockp_demo",
+      boundAt: "2026-08-20T00:00:00.000Z",
+      expiresAt: "2027-08-20T00:00:00.000Z",
+    });
+    const reserveBind = vi.fn().mockResolvedValue(active);
+    const bind = vi.fn();
+    const withActorTransaction = vi.fn(
+      async (_actor: Actor, callback: (value: object) => Promise<unknown>) => callback({}),
+    ) as unknown as InsuranceServicePorts["withActorTransaction"];
+    const service = createInsuranceService({
+      withActorTransaction,
+      getAgentContext: vi.fn(),
+      insertQuote: vi.fn(),
+      listPolicies: vi.fn(),
+      reserveBind,
+      finalizeBind: vi.fn(),
+      adapter: { name: "mock", quote: vi.fn(), bind },
+    });
+    await expect(service.bind(actor, active.id)).resolves.toEqual(active);
+    expect(bind).not.toHaveBeenCalled();
+  });
+
   it("maps list rows to the safe policy DTO", async () => {
     const tx = {};
     const service = createInsuranceService({

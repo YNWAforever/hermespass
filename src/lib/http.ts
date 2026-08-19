@@ -65,6 +65,26 @@ export function errorResponse(request: Request, error: unknown): Response {
     return jsonError(request, "INVALID_JSON", "The request body must contain valid JSON.", 400);
 
   const message = error instanceof Error ? error.message : "";
+  if (message === "INSURANCE_POLICY_EXISTS" || message === "insurance policy already current")
+    return jsonError(
+      request,
+      "INSURANCE_POLICY_EXISTS",
+      "An active insurance policy already exists for this agent.",
+      409,
+    );
+  if (message === "INSURANCE_BIND_CONFLICT" || message === "insurance bind already in progress")
+    return jsonError(
+      request,
+      "INSURANCE_BIND_CONFLICT",
+      "Another insurance bind is already in progress.",
+      409,
+    );
+  if (message === "INSURANCE_BIND_STALE" || message === "insurance bind attempt is stale")
+    return jsonError(request, "INSURANCE_BIND_STALE", "The insurance bind attempt is stale.", 409);
+  if (message === "INSURANCE_POLICY_INVALID")
+    return jsonError(request, message, "The insurance policy cannot be bound.", 400);
+  if (message === "INSURANCE_BIND_UNAVAILABLE")
+    return jsonError(request, message, "The insurance binding service is unavailable.", 503);
   if (message === "AGENT_AUTH_FAILED")
     return jsonError(request, message, "Agent authentication failed.", 401);
   if (message === "NONCE_CONFLICT")
