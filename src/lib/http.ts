@@ -175,6 +175,21 @@ export function errorResponse(request: Request, error: unknown): Response {
     return jsonError(request, message, "Only a valid did:web identifier is supported.", 400);
   if (message === "PAYLOAD_TOO_LARGE")
     return jsonError(request, message, "The request is too large.", 413);
+  if (message === "COMMS_INBOUND_SECRET_INVALID")
+    return jsonError(request, message, "Inbound authentication failed.", 401);
+  if (message === "COMMS_INBOUND_INVALID")
+    return jsonError(request, message, "The inbound message is invalid.", 400);
+  if (message === "COMMS_AGENT_NOT_FOUND")
+    return jsonError(request, message, "The addressed agent was not found.", 404);
+  if (message === "COMMS_UNAVAILABLE")
+    return jsonError(request, message, "Inbound communications are temporarily unavailable.", 503);
+  if (message === "COMMS_INBOUND_SECRET is required for inbound communications")
+    return jsonError(
+      request,
+      "COMMS_INBOUND_UNAVAILABLE",
+      "Inbound communications are unavailable.",
+      503,
+    );
 
   if (
     message === "BILLING_WEBHOOK_SIGNATURE_INVALID" ||
