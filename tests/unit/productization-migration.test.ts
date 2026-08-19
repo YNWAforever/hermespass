@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const root = resolve(import.meta.dirname, "../..");
 const migration = resolve(root, "drizzle/0013_productization_core.sql");
 const publicVerificationMigration = resolve(root, "drizzle/0014_public_verification.sql");
+const reportBoundaryMigration = resolve(root, "drizzle/0015_report_read_boundary.sql");
 const journal = resolve(root, "drizzle/meta/_journal.json");
 
 describe("productization migration contract", () => {
@@ -29,8 +30,24 @@ describe("productization migration contract", () => {
       "0011_payment_authorization_boundary",
       "0012_insurance_lifecycle",
     ]);
-    expect(entries.at(-2)).toMatchObject({ idx: 13, tag: "0013_productization_core" });
-    expect(entries.at(-1)).toMatchObject({ idx: 14, tag: "0014_public_verification" });
+    expect(entries.find((entry) => entry.idx === 13)).toMatchObject({
+      idx: 13,
+      tag: "0013_productization_core",
+    });
+    expect(entries.find((entry) => entry.idx === 14)).toMatchObject({
+      idx: 14,
+      tag: "0014_public_verification",
+    });
+    expect(entries.at(-1)).toMatchObject({ idx: 15, tag: "0015_report_read_boundary" });
+  });
+
+  it("adds the restricted report read boundary without rewriting core SQL", () => {
+    expect(existsSync(reportBoundaryMigration)).toBe(true);
+    const sql = readFileSync(reportBoundaryMigration, "utf8");
+    expect(sql).toContain("hermes_report_read_model");
+    expect(sql).toContain("hermes_verify_audit_chain");
+    expect(sql).toContain("REVOKE ALL ON FUNCTION public.hermes_report_read_model");
+    expect(sql).not.toMatch(/DROP TABLE|DROP FUNCTION/i);
   });
 
   it("adds the restricted API-key revoke boundary without rewriting core SQL", () => {

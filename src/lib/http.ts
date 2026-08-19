@@ -176,6 +176,30 @@ export function errorResponse(request: Request, error: unknown): Response {
   if (message === "PAYLOAD_TOO_LARGE")
     return jsonError(request, message, "The request is too large.", 413);
 
+  if (message === "REPORT_EXPORT_INVALID")
+    return jsonError(request, message, "The report export credential is invalid.", 401);
+  if (message === "REPORT_EXPORT_SECRET is required for report exports")
+    return jsonError(
+      request,
+      "REPORT_EXPORT_UNAVAILABLE",
+      "Report export configuration is unavailable.",
+      503,
+    );
+  if (message === "REPORT_ORG_REQUIRED")
+    return jsonError(request, message, "An organization id is required for report exports.", 400);
+  if (message === "REPORT_ORG_INVALID")
+    return jsonError(request, message, "The organization id is invalid.", 400);
+  if (message === "REPORT_ORG_NOT_FOUND")
+    return jsonError(request, message, "The organization was not found.", 404);
+  if (
+    message === "REPORT_FRAMEWORK_INVALID" ||
+    message === "REPORT_FORMAT_INVALID" ||
+    message === "REPORT_PERIOD_INVALID" ||
+    message === "REPORT_REQUEST_INVALID"
+  )
+    return jsonError(request, message, "The report request is invalid.", 400);
+  if (message === "REPORT_UNAVAILABLE")
+    return jsonError(request, message, "The report could not be generated.", 503);
   if (message === "AGENT_NOT_FOUND")
     return Response.json(
       { error: { code: message, message: "Agent not found.", requestId: id } },

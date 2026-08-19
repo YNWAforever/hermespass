@@ -216,22 +216,22 @@ Interfaces:
     buildHkmaReport(input: ReportInput): ComplianceReport;
     encodeReportCsv(report: ComplianceReport): string;
 
-- [ ] Step 1: Write failing pure report tests. Assert exact framework labels, four stable section ids, agent/decision/approval counts, timeout and broken-chain exceptions, HKMA section title remapping, and deterministic output for the same input. Run bun x vitest run tests/unit/reports.test.ts; expect missing-module failures.
+- [x] Step 1: Write failing pure report tests. Assert exact framework labels, four stable section ids, agent/decision/approval counts, timeout and broken-chain exceptions, HKMA section title remapping, and deterministic output for the same input. Run bun x vitest run tests/unit/reports.test.ts; expect missing-module failures.
 
-- [ ] Step 2: Implement pure report builders. Keep report builders free of database/network imports. IMDA sections are accountability, technical-controls, audit-integrity, and incidents; HKMA reuses the evidence with its own headings. Exceptions explicitly include broken chain and timed-out approvals.
+- [x] Step 2: Implement pure report builders. Keep report builders free of database/network imports. IMDA sections are accountability, technical-controls, audit-integrity, and incidents; HKMA reuses the evidence with its own headings. Exceptions explicitly include broken chain and timed-out approvals.
 
-- [ ] Step 3: Implement one safe CSV encoder. Quote every cell and prefix values beginning with =, +, -, @, control characters, or whitespace followed by formula characters. Add tests for formula injection and commas/quotes/newlines.
+- [x] Step 3: Implement one safe CSV encoder. Quote every cell and prefix values beginning with =, +, -, @, control characters, or whitespace followed by formula characters. Add tests for formula injection and commas/quotes/newlines.
 
-- [ ] Step 4: Implement the report read model and route. Resolve the organization from the actor for session requests. For n8n bearer requests, use constant-time comparison against REPORT_EXPORT_SECRET, require a UUID orgId, and use a system read transaction limited to that organization. Query existing audit/gateway/approval tables, call the authoritative chain verifier, build the typed input, and return JSON or text/csv with a safe filename. Never return raw rows or credentials.
+- [x] Step 4: Implement the report read model and route. Resolve the organization from the actor for session requests. For n8n bearer requests, use constant-time comparison against REPORT_EXPORT_SECRET, require a UUID orgId, and use a system read transaction limited to that organization. Query existing audit/gateway/approval tables, call the authoritative chain verifier, build the typed input, and return JSON or text/csv with a safe filename. Never return raw rows or credentials.
 
-- [ ] Step 5: Wire the dashboard. Keep the existing print/PDF action and add separate download links labeled Export IMDA report and Export HKMA report. Preserve the live chain verification state and existing visual layout.
+- [x] Step 5: Wire the dashboard. Keep the existing print/PDF action and add separate download links labeled Export IMDA report and Export HKMA report. Preserve the live chain verification state and existing visual layout.
 
-- [ ] Step 6: Run focused and browser tests.
+- [x] Step 6: Run focused and browser tests.
 
     bun x vitest run tests/unit/reports.test.ts tests/unit/report-csv.test.ts tests/unit/reports-api.test.ts
     bun x playwright test tests/e2e/reports.spec.ts
 
-- [ ] Step 7: Commit the reporting slice.
+- [x] Step 7: Commit the reporting slice.
 
     git add src/lib/reports src/app/api/reports/compliance src/components/hermes/dashboard/compliance-client.tsx tests/unit/reports.test.ts tests/unit/report-csv.test.ts tests/unit/reports-api.test.ts tests/e2e/reports.spec.ts
     git commit -m "feat(compliance): add IMDA and HKMA report exports"
