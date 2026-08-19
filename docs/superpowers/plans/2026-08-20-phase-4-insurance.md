@@ -1,6 +1,6 @@
 # HermesPass Phase 4 — Neon Insurance Lifecycle Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a Neon-native, mock-insurer liability insurance lifecycle that quotes, binds, records a 20% commission, processes signed status webhooks, and preserves every event in the tenant audit chain without affecting payment authorization.
 
@@ -61,7 +61,7 @@ export interface InsurerAdapter {
 - Create: `docs/superpowers/plans/2026-08-20-phase-4-insurance.md`
 - Existing design: `docs/superpowers/specs/2026-08-20-phase-4-insurance-design.md`
 
-- [ ] **Step 1: Verify the baseline and worktree.**
+- [x] **Step 1: Verify the baseline and worktree.**
 
 Run from the Phase 4 worktree:
 
@@ -73,7 +73,7 @@ git merge-base --is-ancestor d7d0d65af928292407eb78f4d20a263be8a92d5c HEAD
 
 Expected: branch `codex/phase-4-insurance`, clean at the Phase 3 commit, and exit code `0` for the ancestor check. Stop if the checkout differs.
 
-- [ ] **Step 2: Index the worktree.**
+- [x] **Step 2: Index the worktree.**
 
 ```powershell
 bun run test -- tests/unit/approval-operations-migration.test.ts --maxWorkers=1 --fileParallelism=false
@@ -81,11 +81,11 @@ bun run test -- tests/unit/approval-operations-migration.test.ts --maxWorkers=1 
 
 Run codebase-memory moderate indexing for the Phase 4 worktree and record the project name in the report. Do not index a different checkout.
 
-- [ ] **Step 3: Write ADR-0005.**
+- [x] **Step 3: Write ADR-0005.**
 
 Record the Neon/Drizzle decision, standalone non-blocking lifecycle, mock-only insurer, fixed rate card, 20% commission, owner/admin mutation boundary, forced RLS, idempotent bind reservations, webhook secret gate, and explicit deferral of partner/production writes.
 
-- [ ] **Step 4: Commit documentation only.**
+- [x] **Step 4: Commit documentation only.**
 
 ```powershell
 git add docs/decisions/0005-neon-insurance.md docs/superpowers/plans/2026-08-20-phase-4-insurance.md docs/superpowers/specs/2026-08-20-phase-4-insurance-design.md
@@ -110,7 +110,7 @@ Expected: one documentation commit with no source, schema, dependency, or enviro
 
 **Produces:** tables, enums, RLS policies, safe projections, state-transition functions, and an integration fixture for every later task.
 
-- [ ] **Step 1: Write the static migration RED test.**
+- [x] **Step 1: Write the static migration RED test.**
 
 Assert that the journal appends `0012_insurance_lifecycle`, the migration contains `insurance_policies`, `insurance_policy_events`, `insurance_commission_ledger`, `FORCE ROW LEVEL SECURITY`, the `binding` state, the unique current-policy predicate, and the worker-claim check. Run:
 
@@ -120,11 +120,11 @@ bun x vitest run tests/unit/insurance-migration.test.ts
 
 Expected: fail because the migration and snapshot do not exist.
 
-- [ ] **Step 2: Extend the Drizzle schema.**
+- [x] **Step 2: Extend the Drizzle schema.**
 
 Add enums and tables with organization/agent composite foreign keys, integer-cent columns, timestamps, and unique constraints. The policy table must include `version`, `status`, `bind_attempt_id`, `bind_attempt_expires_at`, `insurer_quote_id`, `insurer_policy_id`, and `commission_bps`; events must include `provider_event_id`, `event_kind`, and `payload_digest`; the ledger must have a unique `insurance_policy_id`.
 
-- [ ] **Step 3: Write reviewed SQL.**
+- [x] **Step 3: Write reviewed SQL.**
 
 Create enum values `insurance_status` and `insurance_event_kind`; create all three tables; force RLS; add tenant select policies and owner/admin mutation policies; add the partial unique index for status in `quoted`, `binding`, `active`; add the provider-event unique index `(insurer, provider_event_id)` where non-null; add composite tenant foreign keys and positive-cent/check constraints.
 
@@ -141,7 +141,7 @@ hermes_insurance_provider_event(p_payload jsonb)
 
 Each mutating function must require the verified actor or payment-independent insurance worker claim, acquire the per-agent advisory lock before row locks, and append through the existing audit trigger. The provider-event function must deduplicate `(insurer, provider_event_id)`, permit only `active -> lapsed/canceled` and `active -> active` renewal transitions, and return a safe `applied` boolean.
 
-- [ ] **Step 4: Generate and inspect migration metadata.**
+- [x] **Step 4: Generate and inspect migration metadata.**
 
 Run:
 
@@ -152,11 +152,11 @@ bun x drizzle-kit generate --name=insurance_lifecycle_consistency
 
 Expected: `Everything's fine` and `No schema changes, nothing to migrate` after the hand-authored migration is represented in the snapshot. Do not run `drizzle-kit push`.
 
-- [ ] **Step 5: Add the migration to the serialized database runner.**
+- [x] **Step 5: Add the migration to the serialized database runner.**
 
 Append `tests/integration/postgres.insurance.integration.test.ts` after the existing Phase 3 integration files in `scripts/run-db-tests.ts`.
 
-- [ ] **Step 6: Run the static RED/GREEN checks and commit.**
+- [x] **Step 6: Run the static RED/GREEN checks and commit.**
 
 ```powershell
 bun x vitest run tests/unit/insurance-migration.test.ts
@@ -178,7 +178,7 @@ git commit -m "feat(db): add Neon insurance lifecycle tables and RLS"
 - Create: `src/lib/insurance/index.ts`
 - Create: `tests/unit/insurance.test.ts`
 
-- [ ] **Step 1: Write the failing unit tests.**
+- [x] **Step 1: Write the failing unit tests.**
 
 Cover the exact rate card, floor commission, invalid tier rejection, allowed transitions, forbidden terminal transitions, deterministic quote/policy IDs, seven-day quote expiry, and one-year bound expiry using an injected clock. Run:
 
@@ -188,7 +188,7 @@ bun x vitest run tests/unit/insurance.test.ts
 
 Expected: module-resolution failure for `@/lib/insurance/rates` and `@/lib/insurance/mock-insurer`.
 
-- [ ] **Step 2: Implement pure functions.**
+- [x] **Step 2: Implement pure functions.**
 
 ```ts
 export function premiumForRiskTier(tier: InsuranceRiskTier): number;
@@ -199,11 +199,11 @@ export function canTransition(from: InsuranceStatus, to: InsuranceStatus): boole
 
 Use integer arithmetic and reject non-safe positive cents. `canTransition` must allow `quoted -> binding`, `binding -> active`, `active -> lapsed`, `active -> canceled`, and `active -> active` renewal; it must reject transitions out of `lapsed`/`canceled`.
 
-- [ ] **Step 3: Implement the deterministic mock adapter.**
+- [x] **Step 3: Implement the deterministic mock adapter.**
 
 `quote()` returns `mockq_<base64url(org-free agent DID + risk tier)>`, exact rate-card values, and `clock.now + 7 days`. `bind()` accepts only `mockq_` IDs and returns a deterministic `mockp_` ID, `clock.now`, and `clock.now + 365 days`. The adapter accepts the idempotency key and returns the same output for repeated keys.
 
-- [ ] **Step 4: Run the GREEN unit suite and commit.**
+- [x] **Step 4: Run the GREEN unit suite and commit.**
 
 ```powershell
 bun x vitest run tests/unit/insurance.test.ts
@@ -252,23 +252,23 @@ export type InsuranceService = {
 };
 ```
 
-- [ ] **Step 1: Write service and route RED tests.**
+- [x] **Step 1: Write service and route RED tests.**
 
 Prove unauthenticated requests return 401, missing membership returns 403, viewers cannot quote, owner/admin quote derives organization/risk from the server, cross-tenant agent IDs are rejected, duplicate current quotes are idempotent/conflict-safe, and list responses never contain binding attempts or provider payloads.
 
-- [ ] **Step 2: Implement the store and actor boundary.**
+- [x] **Step 2: Implement the store and actor boundary.**
 
 Use `requireActor()`, `assertCanMutate(actor)` for owner/admin, `withActorTransaction(actor, callback)` for quote insertion, and `withPublicDatabase` only for the narrow read projection. The store must set the verified actor claim before invoking SQL functions and must never accept organization ID from the browser.
 
-- [ ] **Step 3: Implement quote orchestration.**
+- [x] **Step 3: Implement quote orchestration.**
 
 Validate the UUID body and 16 KiB limit; read the agent context; call `activeInsurer().quote()` with a deterministic idempotency key; inside the transaction lock the agent, re-check current policy/risk/agent status, insert the quote, append `insurance.quote`, and return a safe DTO. If an equivalent current quote already exists, return it without a second audit; a different quote request returns `INSURANCE_POLICY_EXISTS`.
 
-- [ ] **Step 4: Implement GET and POST routes.**
+- [x] **Step 4: Implement GET and POST routes.**
 
 Use `ok({ policies })` and `errorResponse(request, error)` so request IDs and stable codes match existing APIs. `GET /api/insurance/policies` must be organization-scoped and pagination-bounded; `POST /api/insurance/quote` returns 201 for a new quote and 200 for an idempotent replay.
 
-- [ ] **Step 5: Run focused unit/route tests and commit.**
+- [x] **Step 5: Run focused unit/route tests and commit.**
 
 ```powershell
 bun x vitest run tests/unit/insurance-service.test.ts tests/unit/insurance-route.test.ts
@@ -290,19 +290,19 @@ git commit -m "feat(insurance): add tenant-scoped quote and policy APIs"
 - Modify: `tests/unit/insurance-route.test.ts`
 - Modify: `tests/integration/postgres.insurance.integration.test.ts`
 
-- [ ] **Step 1: Write binding RED tests.**
+- [x] **Step 1: Write binding RED tests.**
 
 Cover owner/admin authorization, expired quote denial, duplicate bind replay, binding reservation creation, stale takeover fencing, old attempt finalize/cancel denial, exactly one active policy, exactly one commission row at 20%, and rollback when audit insertion fails.
 
-- [ ] **Step 2: Implement the two-phase bind service.**
+- [x] **Step 2: Implement the two-phase bind service.**
 
 `reserveBind()` acquires the agent advisory lock and changes `quoted -> binding` with a random attempt ID and five-minute expiry. Call the adapter outside the transaction with `mockp_` idempotency. `finalizeBind()` reacquires the lock and accepts only the current attempt ID; it changes `binding -> active`, inserts the unique ledger row using `commissionCents`, appends `insurance.bind`, and clears the attempt fields. If a reservation is stale, a new attempt replaces it; an old worker receives `INSURANCE_BIND_STALE` and cannot mutate the new row.
 
-- [ ] **Step 3: Implement `POST /api/insurance/bind`.**
+- [x] **Step 3: Implement `POST /api/insurance/bind`.**
 
 Require a UUID `policyId`, owner/admin actor, current quote, and no terminal/active conflict. Return 200 for an idempotent active policy replay, 409 for a conflicting bind, and 503 only for an unavailable adapter. Never return the bind attempt ID or provider secret.
 
-- [ ] **Step 4: Run the focused and live integration tests.**
+- [x] **Step 4: Run the focused and live integration tests.**
 
 ```powershell
 bun x vitest run tests/unit/insurance-service.test.ts tests/unit/insurance-route.test.ts
@@ -311,7 +311,7 @@ $env:DATABASE_URL_TEST='postgresql://postgres:postgres@127.0.0.1:55440/hermespas
 
 Expected: all insurance integration cases pass, including concurrent bind and stale-worker fencing. Remove the exact disposable container after the run and verify its name is absent.
 
-- [ ] **Step 5: Commit the bind slice.**
+- [x] **Step 5: Commit the bind slice.**
 
 ```powershell
 git add src/lib/insurance/store.ts src/lib/insurance/service.ts src/app/api/insurance/bind/route.ts tests/unit/insurance-service.test.ts tests/unit/insurance-route.test.ts tests/integration/postgres.insurance.integration.test.ts
@@ -332,23 +332,23 @@ git commit -m "feat(insurance): bind policies and ledger commissions"
 - Create: `tests/unit/insurance-webhook.test.ts`
 - Modify: `tests/integration/postgres.insurance.integration.test.ts`
 
-- [ ] **Step 1: Write webhook RED tests.**
+- [x] **Step 1: Write webhook RED tests.**
 
 Cover missing/invalid secret, malformed JSON, oversized and invalid UTF-8 bodies, supported lapse/cancel/renew events, unknown provider policy, duplicate provider event, invalid transition, and safe acknowledgement. Assert the stored event excludes unknown provider fields.
 
-- [ ] **Step 2: Implement the signed parser.**
+- [x] **Step 2: Implement the signed parser.**
 
 Use a request-time `INSURANCE_WEBHOOK_SECRET` accessor that fails closed when absent; compare the header with a constant-time byte comparison; cap the streaming body at 16 KiB; parse only `{ eventId, insurer, insurerPolicyId, event, effectiveAt }`; canonicalize safe fields and compute a SHA-256 digest.
 
-- [ ] **Step 3: Implement the webhook route and SQL event function.**
+- [x] **Step 3: Implement the webhook route and SQL event function.**
 
 The route verifies the secret before parsing, calls `hermes_insurance_provider_event`, and returns `{ data: { applied: boolean } }`. The SQL function acquires the policy’s agent lock, locks the policy, deduplicates `(insurer, providerEventId)`, validates the state transition, appends one `insurance_policy_events` row and one audit action, and commits atomically. Replays return `applied: false` without a second event/audit.
 
-- [ ] **Step 4: Add environment documentation without secrets.**
+- [x] **Step 4: Add environment documentation without secrets.**
 
 Add only `INSURANCE_WEBHOOK_SECRET=` to `.env.example`; do not create `.env.local`, print a real value, or configure Vercel/Neon.
 
-- [ ] **Step 5: Run focused webhook/DB tests and commit.**
+- [x] **Step 5: Run focused webhook/DB tests and commit.**
 
 ```powershell
 bun x vitest run tests/unit/insurance-webhook.test.ts tests/unit/insurance-route.test.ts
@@ -370,11 +370,11 @@ git commit -m "feat(insurance): add signed insurer status webhooks"
 - Create: `.superpowers/sdd/task-8-report.md` (ignored)
 - Modify: `.superpowers/sdd/progress.md` (ignored)
 
-- [ ] **Step 1: Add deterministic route/service tests.**
+- [x] **Step 1: Add deterministic route/service tests.**
 
 Use the existing fixture-auth harness to verify owner quote → bind, viewer read-only access, viewer mutation denial, webhook replay, audit verification, and exact commission values. Keep provider calls mocked; do not use hosted credentials.
 
-- [ ] **Step 2: Run the complete deterministic gate.**
+- [x] **Step 2: Run the complete deterministic gate.**
 
 ```powershell
 bun install --frozen-lockfile
@@ -391,7 +391,7 @@ bun run test:e2e
 
 Expected: no lockfile/schema diff; all existing route/dashboard/visual checks remain green; all insurance tests pass; local PostgreSQL 18 suite passes; build and Playwright pass.
 
-- [ ] **Step 3: Run static scope checks.**
+- [x] **Step 3: Run static scope checks.**
 
 ```powershell
 $supabase = @(rg -n 'from ["'']@/.*supabase|supabaseAdmin|supabaseServer' src/lib/insurance src/app/api/insurance -g '*.ts' -g '*.tsx' -g '!tests/**')
@@ -402,7 +402,7 @@ if ($paymentCoupling.Count -ne 0) { $paymentCoupling }
 
 Expected: both arrays are empty. Provider names may appear only in the insurance adapter type and deferred configuration error.
 
-- [ ] **Step 4: Independent review and commit.**
+- [x] **Step 4: Independent review and commit.**
 
 Run `git diff --check`, inspect the staged file list, obtain a read-only review, then commit:
 
@@ -413,7 +413,7 @@ git commit -m "feat(insurance): complete Neon mock-insurer lifecycle"
 
 Record RED/GREEN results, final SHA, local PG18 cleanup, and the fact that hosted/provider/release gates remain untouched in `.superpowers/sdd/task-8-report.md` and `.superpowers/sdd/progress.md`.
 
-- [ ] **Step 5: Stop at the publication gate.**
+- [x] **Step 5: Stop at the publication gate.**
 
 Do not push, open a PR, connect Vercel, configure `INSURANCE_WEBHOOK_SECRET`, or migrate hosted Neon without separate approval. Present the local commit, test evidence, and the exact external gates still pending.
 

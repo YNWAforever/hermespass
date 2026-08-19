@@ -57,7 +57,11 @@ export type InsurerName = "mock" | "aia" | "zurich";
 
 export interface InsurerAdapter {
   readonly name: InsurerName;
-  quote(input: { agentDid: string; riskTier: InsuranceRiskTier; idempotencyKey: string }): Promise<InsuranceQuote>;
+  quote(input: {
+    agentDid: string;
+    riskTier: InsuranceRiskTier;
+    idempotencyKey: string;
+  }): Promise<InsuranceQuote>;
   bind(input: { quoteId: string; idempotencyKey: string }): Promise<BoundInsurancePolicy>;
 }
 ```

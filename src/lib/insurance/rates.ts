@@ -6,8 +6,6 @@ const RATE_CARD = {
   high: { premiumCents: 90_000, coverageCents: 500_000_000 },
 } as const satisfies Record<InsuranceRiskTier, { premiumCents: number; coverageCents: number }>;
 
-const MAX_SAFE_CENTS = Number.MAX_SAFE_INTEGER;
-
 function cardFor(tier: InsuranceRiskTier) {
   const card = RATE_CARD[tier];
   if (!card) throw new Error("Unsupported insurance risk tier");

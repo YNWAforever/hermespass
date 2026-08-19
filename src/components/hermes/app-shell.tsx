@@ -35,7 +35,7 @@ export function AppShell({ children, actor }: { children: ReactNode; actor?: Act
     role: "owner" as const,
   };
   const pathname = usePathname();
-  const activity = useGatewayActivity(true);
+  const activity = useGatewayActivity(pathname !== "/dashboard/approvals");
   const holds = activity.data?.aggregates.pendingHolds ?? 0;
 
   return (

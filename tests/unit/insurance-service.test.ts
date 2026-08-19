@@ -141,13 +141,11 @@ describe("insurance service", () => {
     ) as unknown as InsuranceServicePorts["withActorTransaction"];
     const reserveBind = vi.fn().mockResolvedValue(reservation);
     const finalizeBind = vi.fn().mockResolvedValue(active);
-    const bind = vi
-      .fn()
-      .mockResolvedValue({
-        insurerPolicyId: "mockp_demo",
-        boundAt: "2026-08-20T00:00:00.000Z",
-        expiresAt: "2027-08-20T00:00:00.000Z",
-      });
+    const bind = vi.fn().mockResolvedValue({
+      insurerPolicyId: "mockp_demo",
+      boundAt: "2026-08-20T00:00:00.000Z",
+      expiresAt: "2027-08-20T00:00:00.000Z",
+    });
     const service = createInsuranceService({
       withActorTransaction,
       getAgentContext: vi.fn(),
