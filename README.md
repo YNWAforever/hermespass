@@ -35,7 +35,7 @@ bun run dev
 
 Open `http://localhost:3000`. Public marketing routes work without a database. The dashboard starts at `/dashboard`; its four focused views are `/dashboard/agents`, `/dashboard/approvals`, `/dashboard/wallets`, and `/dashboard/compliance`.
 
-Database-backed requests require `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `HERMES_KEK_V1` (a base64url-encoded 32-byte key), and `HERMES_KEY_ENVIRONMENT`. Keep migration credentials in an operator-only context; the deployed runtime uses the restricted `hermes_app` role. Apply the reviewed SQL in `drizzle/` with a migration job—never use `drizzle-kit push` against a hosted branch. The issuer is provisioned separately with `bun run db:bootstrap-issuer` after the environment gate is approved.
+Database-backed requests require `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `HERMES_KEK_V1` (a base64url-encoded 32-byte key), and `HERMES_KEY_ENVIRONMENT`. Keep migration credentials in an operator-only context; the deployed runtime uses the restricted `hermes_app` role. Apply the reviewed SQL in `drizzle/` with a migration job—never use `drizzle-kit push` against a hosted branch. The issuer is provisioned separately with `bun run db:bootstrap-issuer` after the environment gate is approved. For each deployed branch using Neon Auth, enable magic-link email delivery for that branch. Magic-link verification returns to `/dashboard`, and a successful Auth session still requires HermesPass organization membership before dashboard access is granted. `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET` remain the only application-side Neon Auth variables.
 
 ## Verification
 
@@ -85,3 +85,4 @@ bun run release:phase6
 ```
 
 Use [Phase 6 release gates](docs/release/phase-6-gates.md) and [launch readiness](docs/launch-readiness.md) as evidence ledgers. Hosted Neon, Vercel, Cloudflare, Stripe, n8n, DNS, production migrations, issuer material, and customer seeding remain approval-gated.
+

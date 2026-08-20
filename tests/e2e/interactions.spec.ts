@@ -50,6 +50,16 @@ test.describe("Next interactions", () => {
     );
   });
 
+  test("magic-link sign-in shows the generic success state without hiding password login", async ({ page }) => {
+    await page.goto(`${NEXT_BASE_URL}/login?next=%2Fdashboard`);
+    await page.getByLabel("Magic-link email").fill("member@example.com");
+    await page.getByRole("button", { name: "Email me a sign-in link" }).click();
+
+    await expect(page.getByRole("status")).toHaveText("If an account exists, check your email.");
+    await expect(page.getByRole("textbox", { name: "Email", exact: true })).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+  });
   test.describe("authenticated dashboard interactions", () => {
     test.use({ storageState: E2E_AUTH_STORAGE_STATE });
 
@@ -229,3 +239,6 @@ test.describe("Next interactions", () => {
     });
   });
 });
+
+
+

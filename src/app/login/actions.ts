@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { isE2eAdapterEnabled } from "@/lib/auth/e2e-adapter";
 import { getAuth } from "@/lib/auth/server";
 import { safeDashboardDestination } from "@/lib/auth/redirects";
 
@@ -32,6 +33,10 @@ export async function requestMagicLinkAction(
   const email = String(formData.get("email") ?? "").trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { sent: false, error: "Enter a valid email address." };
+  }
+
+  if (isE2eAdapterEnabled()) {
+    return { sent: true };
   }
 
   try {
