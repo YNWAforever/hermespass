@@ -56,7 +56,7 @@ describe("runPhase6Preflight", () => {
       );
 
       expect(result.ok).toBe(false);
-      expect(result.checks[1].code).toBe("UNSAFE_RUNTIME_ROLE");
+      expect(result.checks[1]?.code).toBe("UNSAFE_RUNTIME_ROLE");
     },
   );
 

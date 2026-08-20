@@ -97,20 +97,21 @@ export function phase6InputFromEnvironment(
   cwd = process.cwd(),
 ): Phase6PreflightInput {
   const requiredVariables = splitNames(
-    environment.PHASE6_REQUIRED_VARIABLES,
+    environment["PHASE6_REQUIRED_VARIABLES"],
     DEFAULT_REQUIRED_VARIABLES,
   );
   const presentVariableNames = new Set(
-    splitNames(environment.PHASE6_PRESENT_VARIABLES, Object.keys(environment)),
+    splitNames(environment["PHASE6_PRESENT_VARIABLES"], Object.keys(environment)),
   );
-  const routeContractValue = environment.PHASE6_ROUTE_CONTRACT?.trim().toLowerCase();
+  const routeContractValue = environment["PHASE6_ROUTE_CONTRACT"]?.trim().toLowerCase();
 
   return {
     requiredVariables,
     presentVariableNames,
-    runtimeDatabaseUrl: environment.PHASE6_DATABASE_URL ?? environment.DATABASE_URL ?? null,
-    branch: environment.PHASE6_DEPLOYMENT_BRANCH ?? "development",
-    baseUrl: environment.PHASE6_BASE_URL ?? environment.APP_BASE_URL ?? "http://localhost:3000",
+    runtimeDatabaseUrl: environment["PHASE6_DATABASE_URL"] ?? environment["DATABASE_URL"] ?? null,
+    branch: environment["PHASE6_DEPLOYMENT_BRANCH"] ?? "development",
+    baseUrl:
+      environment["PHASE6_BASE_URL"] ?? environment["APP_BASE_URL"] ?? "http://localhost:3000",
     migrationDiff: inspection.migrationDiff?.() ?? defaultMigrationDiff(cwd),
     secretLiteralMatches: inspection.secretLiteralMatches?.() ?? defaultSecretLiteralMatches(cwd),
     routeContractOk:
