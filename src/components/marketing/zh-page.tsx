@@ -1,11 +1,9 @@
+"use client";
+
 import { ArrowRight, Check } from "lucide-react";
-import { localize, useLocale } from "@/lib/i18n/locale";
-import {
-  ZH_PAGES,
-  ZH_UI,
-  type ZhPageContent,
-  type ZhSection,
-} from "@/lib/i18n/zh-content";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { localize } from "@/lib/i18n/locale";
+import { ZH_PAGES, ZH_UI, type ZhPageContent, type ZhSection } from "@/lib/i18n/zh-content";
 import {
   LocaleLink,
   ZhCtaBand,
@@ -77,9 +75,7 @@ function SectionBlock({ section }: { section: ZhSection }) {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {section.items.map((s) => (
             <div key={s.label} className="panel">
-              <p className="text-2xl font-semibold tracking-tight text-emerald-accent">
-                {s.value}
-              </p>
+              <p className="text-2xl font-semibold tracking-tight text-emerald-accent">{s.value}</p>
               <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
             </div>
           ))}
@@ -96,9 +92,7 @@ function SectionBlock({ section }: { section: ZhSection }) {
           {section.items.map((item) => (
             <div key={item.title} className="panel">
               <h3 className="text-base font-semibold">{item.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {item.body}
-              </p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
             </div>
           ))}
         </div>
@@ -113,12 +107,8 @@ function SectionBlock({ section }: { section: ZhSection }) {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {section.items.map((item) => (
             <div key={item.title} className="panel">
-              <h3 className="text-sm font-semibold text-emerald-accent">
-                {item.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {item.body}
-              </p>
+              <h3 className="text-sm font-semibold text-emerald-accent">{item.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
             </div>
           ))}
         </div>
@@ -139,9 +129,7 @@ function SectionBlock({ section }: { section: ZhSection }) {
                   <p className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
                     {section.beforeLabel}
                   </p>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    {item.before}
-                  </p>
+                  <p className="mt-1.5 text-sm text-muted-foreground">{item.before}</p>
                 </div>
                 <div className="rounded-lg border border-emerald-accent/30 bg-emerald-accent/10 p-4">
                   <p className="font-mono text-[10px] tracking-wider text-emerald-accent uppercase">
@@ -183,9 +171,7 @@ function SectionBlock({ section }: { section: ZhSection }) {
                       key={j}
                       className={cn(
                         "px-5 py-4 align-top",
-                        j === 0
-                          ? "font-medium text-foreground"
-                          : "text-muted-foreground",
+                        j === 0 ? "font-medium text-foreground" : "text-muted-foreground",
                       )}
                     >
                       {cell}
@@ -221,8 +207,7 @@ function SectionBlock({ section }: { section: ZhSection }) {
               key={plan.name}
               className={cn(
                 "panel flex flex-col",
-                plan.highlight &&
-                  "border-emerald-accent/40 shadow-glow-emerald",
+                plan.highlight && "border-emerald-accent/40 shadow-glow-emerald",
               )}
             >
               <h3 className="text-base font-semibold">{plan.name}</h3>
@@ -252,9 +237,7 @@ function SectionBlock({ section }: { section: ZhSection }) {
       <Accordion type="single" collapsible className="mt-6 max-w-3xl">
         {section.items.map((item, i) => (
           <AccordionItem key={i} value={`item-${i}`}>
-            <AccordionTrigger className="text-left text-sm">
-              {item.q}
-            </AccordionTrigger>
+            <AccordionTrigger className="text-left text-sm">{item.q}</AccordionTrigger>
             <AccordionContent className="text-sm leading-relaxed text-muted-foreground">
               {item.a}
             </AccordionContent>

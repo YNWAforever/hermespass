@@ -1,4 +1,7 @@
-import { Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   ArrowRight,
   Building2,
@@ -160,9 +163,7 @@ export const NAV_GROUPS: ReadonlyArray<NavGroup> = [
   },
 ] as const;
 
-export const SITE_NAV = [
-  { to: "/pricing", label: "Pricing" },
-] as const;
+export const SITE_NAV = [{ to: "/pricing", label: "Pricing" }] as const;
 
 export function SiteShell({ children }: { children: ReactNode }) {
   return (
@@ -175,6 +176,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
 }
 
 function SiteHeader() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
@@ -195,17 +197,11 @@ function SiteHeader() {
       onMouseLeave={() => setActive(null)}
     >
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-3.5">
-        <Link
-          to="/"
-          className="flex items-center gap-2.5"
-          onMouseEnter={() => setActive(null)}
-        >
+        <Link href="/" className="flex items-center gap-2.5" onMouseEnter={() => setActive(null)}>
           <span className="grid size-8 place-items-center rounded-lg border border-emerald-accent/40 bg-emerald-accent/10 text-emerald-accent shadow-glow-emerald">
             <ShieldCheck className="size-4" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">
-            HermesPass
-          </span>
+          <span className="text-sm font-semibold tracking-tight">HermesPass</span>
         </Link>
 
         <nav className="ml-6 hidden items-center gap-1 lg:flex">
@@ -227,20 +223,20 @@ function SiteHeader() {
             >
               {group.label}
               <ChevronDown
-                className={cn(
-                  "size-3.5 transition-transform",
-                  active === group.id && "rotate-180",
-                )}
+                className={cn("size-3.5 transition-transform", active === group.id && "rotate-180")}
               />
             </button>
           ))}
           {SITE_NAV.map((item) => (
             <Link
               key={item.to}
-              to={item.to}
+              href={item.to}
               onMouseEnter={() => setActive(null)}
-              className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
-              activeProps={{ className: "text-foreground bg-surface" }}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground",
+                (pathname === item.to || pathname.startsWith(`${item.to}/`)) &&
+                  "bg-surface text-foreground",
+              )}
             >
               {item.label}
             </Link>
@@ -253,29 +249,27 @@ function SiteHeader() {
               EN
             </span>
             <Link
-              to="/$locale"
-              params={{ locale: "zh-hant" }}
+              href="/zh-hant"
               className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               繁體
             </Link>
             <Link
-              to="/$locale"
-              params={{ locale: "zh-hans" }}
+              href="/zh-hans"
               className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               简体
             </Link>
           </div>
           <Link
-            to="/dashboard"
+            href="/dashboard"
             className="hidden rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-surface lg:inline-flex"
           >
             Live demo
           </Link>
 
           <Link
-            to="/contact"
+            href="/contact"
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
           >
             Book a briefing <ArrowRight className="size-3.5" />
@@ -302,12 +296,10 @@ function SiteHeader() {
                 <p className="font-mono text-[11px] tracking-[0.22em] text-emerald-accent uppercase">
                   {group.label}
                 </p>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {group.blurb}
-                </p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{group.blurb}</p>
                 {group.footer ? (
                   <Link
-                    to={group.footer.to}
+                    href={group.footer.to}
                     onClick={() => setActive(null)}
                     className="mt-4 inline-flex items-center gap-1.5 text-sm text-foreground transition-opacity hover:opacity-80"
                   >
@@ -321,7 +313,7 @@ function SiteHeader() {
                 {group.items.map((item) => (
                   <Link
                     key={item.to}
-                    to={item.to}
+                    href={item.to}
                     onClick={() => setActive(null)}
                     className="group flex gap-3 rounded-lg border border-transparent p-3 transition-colors hover:border-border hover:bg-surface"
                   >
@@ -355,7 +347,7 @@ function SiteHeader() {
                 {group.items.map((item) => (
                   <Link
                     key={item.to}
-                    to={item.to}
+                    href={item.to}
                     onClick={() => setOpen(false)}
                     className="flex items-center gap-2.5 rounded-md px-2 py-2 text-sm text-muted-foreground hover:text-foreground"
                   >
@@ -368,14 +360,14 @@ function SiteHeader() {
           ))}
           <div className="border-t border-border pt-3">
             <Link
-              to="/pricing"
+              href="/pricing"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-md px-2 py-2 text-sm text-muted-foreground hover:text-foreground"
             >
               <Tags className="size-4" /> Pricing
             </Link>
             <Link
-              to="/dashboard"
+              href="/dashboard"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-md px-2 py-2 text-sm text-muted-foreground hover:text-foreground"
             >
@@ -387,7 +379,6 @@ function SiteHeader() {
     </header>
   );
 }
-
 
 function SiteFooter() {
   return (
@@ -401,8 +392,8 @@ function SiteFooter() {
             <span className="text-sm font-semibold">HermesPass</span>
           </div>
           <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-            Know Your Agent infrastructure: verifiable identity, real-time
-            authority and provable audit for enterprise AI agents.
+            Know Your Agent infrastructure: verifiable identity, real-time authority and provable
+            audit for enterprise AI agents.
           </p>
           <p className="mt-4 font-mono text-[11px] text-muted-foreground">
             did:web:hermespass.asia
@@ -428,9 +419,7 @@ function SiteFooter() {
         ))}
 
         <div>
-          <p className="text-xs font-semibold tracking-wide uppercase">
-            Standards
-          </p>
+          <p className="text-xs font-semibold tracking-wide uppercase">Standards</p>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li>W3C Verifiable Credentials 2.0</li>
             <li>W3C Decentralized Identifiers (DID)</li>
@@ -442,8 +431,8 @@ function SiteFooter() {
 
       <div className="border-t border-border px-5 py-5">
         <p className="mx-auto max-w-6xl text-xs text-muted-foreground">
-          © {new Date().getFullYear()} HermesPass. Product surfaces shown in the
-          live demo use simulated data.
+          © {new Date().getFullYear()} HermesPass. Product surfaces shown in the live demo use
+          simulated data.
         </p>
       </div>
     </footer>
@@ -464,7 +453,7 @@ function FooterCol({
         {links.map((l) => (
           <li key={l.label}>
             <Link
-              to={l.to}
+              href={l.to}
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               {l.label}
@@ -504,12 +493,7 @@ export function SectionHeading({
   align?: "left" | "center";
 }) {
   return (
-    <div
-      className={cn(
-        "max-w-2xl",
-        align === "center" && "mx-auto text-center",
-      )}
-    >
+    <div className={cn("max-w-2xl", align === "center" && "mx-auto text-center")}>
       <p className="font-mono text-[11px] tracking-[0.22em] text-emerald-accent uppercase">
         {eyebrow}
       </p>
@@ -534,18 +518,16 @@ export function CtaBand({
     <Section>
       <div className="panel grid-backdrop relative overflow-hidden p-8 text-center sm:p-12">
         <h2 className="text-2xl font-semibold sm:text-3xl">{title}</h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
-          {description}
-        </p>
+        <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">{description}</p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
           <Link
-            to="/contact"
+            href="/contact"
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-glow-emerald transition-opacity hover:opacity-90"
           >
             Book a briefing <ArrowRight className="size-4" />
           </Link>
           <Link
-            to="/dashboard"
+            href="/dashboard"
             className="inline-flex items-center rounded-lg border border-border bg-surface px-5 py-2.5 text-sm font-medium transition-colors hover:bg-surface-raised"
           >
             Explore the live demo

@@ -1,8 +1,10 @@
 node_modules
 dist
-.output
-.vinxi
 pnpm-lock.yaml
 package-lock.json
 bun.lock
-routeTree.gen.ts
+docs/superpowers/plans/
+.codebase-memory/
+
+# Drizzle metadata is generated JSON; schema migrations remain validated by drizzle-kit.
+drizzle/meta/*.json

@@ -1,82 +1,87 @@
 # HermesPass
 
-Build a modern, high-trust B2B SaaS Enterprise Dashboard for "HermesPass — The Digital Passport & Compliance Infrastructure for AI Agents (KYA)".
+HermesPass is a high-trust enterprise control plane for AI-agent identity, authority, spend, and compliance evidence across Hong Kong and Singapore.
 
-### Brand Identity & Design System
+The application includes:
 
-- **Theme**: Dark enterprise cybersecurity aesthetic (Deep slate/navy `#0B0F19`, bordered with subtle cyan/emerald glows `#10B981`, `#06B6D4`, clean typography using Inter/Geist).
+- English and Simplified/Traditional Chinese marketing sites.
+- Neon-backed Ed25519 agent passports and scoped wallet simulations.
+- A live policy-gateway simulation with human review actions.
+- A tamper-evident audit chain with local CSV and print exports.
 
-- **Style**: Ultra-crisp cards, status pills, cryptographic badges, and live stream log visualization.
+## Stack
 
-- **Component Stack**: Tailwind CSS, Shadcn UI, Lucide Icons, Recharts, Framer Motion.
+- Next.js 16.3.1 App Router
+- React 19.2
+- Tailwind CSS 4
+- Bun 1.3.14
+- Neon Postgres 18 with Neon Auth
+- Drizzle ORM and reviewed SQL migrations
+- Ed25519 / W3C VC 2.0 credentials with envelope-encrypted key material
+- Vitest and Testing Library
+- Playwright
 
----
+## Requirements
 
-### Key Dashboard Pages & Views
-
-#### 1. Agent Directory & KYA Passport Center (`/agents`)
-
-- **Agent Passport Card**:
-
-  - Visual "Digital Passport" card with glowing status badge (`Active`, `Revoked`, `Under Audit`).
-
-  - Agent Details: Agent Name, ID (`did:web:hermespass.asia:agent:...`), Owner Organization, Risk Level badge (Green: Low/Customer Support, Amber: Medium/Procurement, Red: High/Financial Actions).
-
-  - Cryptographic Verification Pill: "W3C VC Verified" with clickable popup showing raw decoded JSON-LD credential and public key thumbprint.
-
-- **Action Toolbar**: "Issue New Agent Passport" modal (Form: Agent Name, Role, Owner Org, Risk Tier, Tool Scopes, Spend Cap).
-
-#### 2. Live Policy Gateway & Human-in-the-Loop Hub (`/approvals`)
-
-- **Real-Time Stream**: WebSocket-connected list of agent actions.
-
-- **Tri-State Status Badges**: `ALLOW` (Green), `DENY` (Red), `HOLD (Pending Review)` (Amber Pulse).
-
-- **Human Review Drawer**:
-
-  - Shows incoming agent request (e.g., "Customer Support Agent Alpha requested refund of HK$ 820 for Order #9812 - Exceeds HK$ 500 auto-cap").
-
-  - Action buttons: "Approve Action", "Reject Action", "Escalate to Telegram".
-
-#### 3. Payment & Scoped Spend Limits (`/wallets`)
-
-- **Virtual Card Visualizer**: Display scoped virtual cards assigned to each agent with cardholder name as Agent ID.
-
-- **Controls**: Interactive spend cap sliders (Daily / Monthly / Per-Tx limit), MCC categories whitelist selector (e.g., Cloud Services, Travel, Office Supplies).
-
-#### 4. Regulatory Audit Log & Compliance Exporter (`/compliance`)
-
-- **Tamper-Evident Hash Chain Table**: Columns: Block Index, Timestamp, Agent ID, Action Type, Payload Hash, Previous Hash, Signature Valid (Icon), Decision.
-
-- **Compliance Header Bar**:
-
-  - Readiness Badges: "IMDA Agentic AI MGF v1.5 Compliant (Singapore)" & "HKMA GenA.I. Sandbox++ Ready (Hong Kong)".
-
-  - Export Button: "Generate 1-Click Regulatory PDF/CSV Report" triggering instant export workflow.
-
-#### 5. Mock Data & State Management
-
-- Pre-populate realistic mock data for 4 agents (Kinnso Recommendation Agent, Fimmick Merchant Concierge, Adfocate Campaign Optimizer, AutoProcure Bot).
-
-- Include working local state to issue new passports, toggle policy limits, and simulate approval clicks.
-
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/0826accd-3a25-4ae6-a818-117a59386dc2).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- Node.js 22.0 or newer
+- Bun 1.3.14
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+```powershell
+bun install --frozen-lockfile
+bun run dev
 ```
+
+Open `http://localhost:3000`. Public marketing routes work without a database. The dashboard starts at `/dashboard`; its four focused views are `/dashboard/agents`, `/dashboard/approvals`, `/dashboard/wallets`, and `/dashboard/compliance`.
+
+Database-backed requests require `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `HERMES_KEK_V1` (a base64url-encoded 32-byte key), and `HERMES_KEY_ENVIRONMENT`. Keep migration credentials in an operator-only context; the deployed runtime uses the restricted `hermes_app` role. Apply the reviewed SQL in `drizzle/` with a migration job—never use `drizzle-kit push` against a hosted branch. The issuer is provisioned separately with `bun run db:bootstrap-issuer` after the environment gate is approved.
+
+## Verification
+
+```powershell
+bun run format:check
+bun run lint
+bun run typecheck
+bun run test
+bun run build
+```
+
+Browser suites are available through `bun run test:e2e`, with focused route and visual-parity commands under `test:routes` and `test:parity`.
+
+## Identity and audit boundaries
+
+Neon Auth owns user sessions. HermesPass stores only the user ID and one organization membership; it never modifies the managed Auth schema. Tenant tables use forced RLS and a transaction-local verified user claim. Owners and admins can issue or revoke passports; viewers are read-only. Issuer and agent private JWKs are envelope-encrypted with an environment-specific KEK, and the append-only audit trigger computes each hash while holding a per-organization advisory lock.
+
+## App Router boundaries
+
+Route `page.tsx` files remain Server Components and own their metadata. Stateful marketing and dashboard bodies live in explicit client components. Pure locale validation and Chinese conversion stay separate from the client-only locale context so server metadata never imports React client modules.
+
+## Productization adapters
+
+Phase 5 adds Neon-backed organization onboarding, hashed metered public verification, IMDA/HKMA compliance exports, a lazy Stripe Billing adapter, and a bounded inbound communications endpoint. Stripe, n8n, Google, Cloudflare, and hosted Neon setup remain request-time/test-mode handoffs; no provider resources are created by local commands.
+
+Productization verification uses the same deterministic gates as the rest of the application:
+
+```powershell
+bun run db:check
+bun x drizzle-kit generate --name=phase5_final_consistency
+bun run test:db
+bun run test:e2e
+```
+
+Use `ops/n8n/compliance-report.json` only after a separate nonproduction provider approval. Configure its environment placeholders and human-managed credentials in n8n; never commit them here.
+
+## Release status
+
+Source and local PostgreSQL/browser evidence can be reproduced without hosted providers. Singapore-first Neon setup, Stripe configuration, n8n activation, domain/DNS changes, publication, production migrations, and customer seed remain explicitly **awaiting approval**. See [launch readiness](docs/launch-readiness.md) and [Phase 5 gates](docs/release/phase-5-gates.md).
+
+## Phase 6 release preflight
+
+The Phase 6 release command is offline and redacted: it checks required variable names, restricted `hermes_app` runtime-role separation, deployment branch/base URL shape, migration drift, route fixtures, and secret-like literals without contacting Neon or other providers.
+
+```powershell
+bun run release:phase6
+```
+
+Use [Phase 6 release gates](docs/release/phase-6-gates.md) and [launch readiness](docs/launch-readiness.md) as evidence ledgers. Hosted Neon, Vercel, Cloudflare, Stripe, n8n, DNS, production migrations, issuer material, and customer seeding remain approval-gated.

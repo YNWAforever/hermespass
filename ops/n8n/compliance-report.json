@@ -1,0 +1,114 @@
+{
+  "name": "HermesPass monthly compliance reports",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": { "item": [{ "mode": "custom", "cronExpression": "0 1 1 * *" }] },
+        "timezone": "Asia/Hong_Kong"
+      },
+      "id": "hermespass-monthly-trigger",
+      "name": "Monthly HKT trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.HERMES_BASE_URL }}/api/reports/compliance?framework=imda&format=csv&orgId={{ $env.HERMES_ORG_ID }}&periodStart={{ $now.startOf('month').toISODate() }}&periodEnd={{ $now.endOf('month').plus({ days: 1 }).toISODate() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParametersUi": {
+          "parameter": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.REPORT_EXPORT_SECRET }}" }
+          ]
+        },
+        "options": { "response": { "response": { "responseFormat": "file" } } }
+      },
+      "id": "hermespass-imda-report",
+      "name": "Fetch IMDA CSV report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HERMES_REPORT_HEADER_AUTH_ID",
+          "name": "HERMES_REPORT_HEADER_AUTH"
+        }
+      },
+      "position": [500, 220]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "binaryData": true,
+        "name": "={{ 'hermespass-imda-' + $now.toISODate() + '.csv' }}",
+        "parents": ["={{ $env.HERMES_DRIVE_FOLDER_ID }}"]
+      },
+      "id": "hermespass-imda-drive",
+      "name": "Save IMDA CSV to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [760, 220]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.HERMES_BASE_URL }}/api/reports/compliance?framework=hkma&format=json&orgId={{ $env.HERMES_ORG_ID }}&periodStart={{ $now.startOf('month').toISODate() }}&periodEnd={{ $now.endOf('month').plus({ days: 1 }).toISODate() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParametersUi": {
+          "parameter": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.REPORT_EXPORT_SECRET }}" }
+          ]
+        }
+      },
+      "id": "hermespass-hkma-report",
+      "name": "Fetch HKMA JSON summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HERMES_REPORT_HEADER_AUTH_ID",
+          "name": "HERMES_REPORT_HEADER_AUTH"
+        }
+      },
+      "position": [500, 420]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.HERMES_SHEET_ID }}",
+        "columns": { "mappingMode": "autoMapInputData" },
+        "options": {}
+      },
+      "id": "hermespass-hkma-sheets",
+      "name": "Append HKMA summary to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [760, 420]
+    }
+  ],
+  "connections": {
+    "Monthly HKT trigger": {
+      "main": [
+        [
+          { "node": "Fetch IMDA CSV report", "type": "main", "index": 0 },
+          { "node": "Fetch HKMA JSON summary", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch IMDA CSV report": {
+      "main": [[{ "node": "Save IMDA CSV to Drive", "type": "main", "index": 0 }]]
+    },
+    "Fetch HKMA JSON summary": {
+      "main": [[{ "node": "Append HKMA summary to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "versionId": "hermespass-phase5-compliance-report-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}
