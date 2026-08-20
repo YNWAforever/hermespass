@@ -55,6 +55,14 @@ test.describe("39-public-route and 5-dashboard contract", () => {
     });
   }
 
+  test("/login?next=%2Fdashboard stays public and advertises the magic-link flow", async ({ page, request }) => {
+    const response = await request.get(`${NEXT_BASE_URL}/login?next=%2Fdashboard`, { maxRedirects: 0 });
+    expect(response.status()).toBe(200);
+
+    await page.goto(`${NEXT_BASE_URL}/login?next=%2Fdashboard`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByText("Email me a sign-in link")).toBeVisible();
+  });
+
   test.describe("authenticated dashboard route contract", () => {
     test.use({ storageState: E2E_AUTH_STORAGE_STATE });
 
@@ -87,3 +95,5 @@ test.describe("39-public-route and 5-dashboard contract", () => {
     });
   }
 });
+
+
