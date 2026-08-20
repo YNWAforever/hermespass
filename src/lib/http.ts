@@ -65,6 +65,33 @@ export function errorResponse(request: Request, error: unknown): Response {
     return jsonError(request, "INVALID_JSON", "The request body must contain valid JSON.", 400);
 
   const message = error instanceof Error ? error.message : "";
+  if (message === "INSURANCE_POLICY_EXISTS" || message === "insurance policy already current")
+    return jsonError(
+      request,
+      "INSURANCE_POLICY_EXISTS",
+      "An active insurance policy already exists for this agent.",
+      409,
+    );
+  if (message === "INSURANCE_BIND_CONFLICT" || message === "insurance bind already in progress")
+    return jsonError(
+      request,
+      "INSURANCE_BIND_CONFLICT",
+      "Another insurance bind is already in progress.",
+      409,
+    );
+  if (message === "INSURANCE_BIND_STALE" || message === "insurance bind attempt is stale")
+    return jsonError(request, "INSURANCE_BIND_STALE", "The insurance bind attempt is stale.", 409);
+  if (message === "INSURANCE_POLICY_INVALID")
+    return jsonError(request, message, "The insurance policy cannot be bound.", 400);
+  if (message === "INSURANCE_WEBHOOK_SECRET is required for insurance operations")
+    return jsonError(
+      request,
+      "INSURANCE_WEBHOOK_UNAVAILABLE",
+      "Insurance webhook configuration is unavailable.",
+      503,
+    );
+  if (message === "INSURANCE_BIND_UNAVAILABLE")
+    return jsonError(request, message, "The insurance binding service is unavailable.", 503);
   if (message === "AGENT_AUTH_FAILED")
     return jsonError(request, message, "Agent authentication failed.", 401);
   if (message === "NONCE_CONFLICT")
@@ -82,6 +109,132 @@ export function errorResponse(request: Request, error: unknown): Response {
   if (message === "TELEGRAM_LINK_UNAVAILABLE")
     return jsonError(request, message, "Telegram linking is temporarily unavailable.", 503);
 
+  if (message === "ORGANIZATION_INVALID")
+    return jsonError(request, message, "The organization details are invalid.", 400);
+  if (message === "ORGANIZATION_MEMBERSHIP_EXISTS")
+    return jsonError(request, message, "This user already belongs to an organization.", 409);
+  if (message === "ORGANIZATION_SLUG_TAKEN")
+    return jsonError(request, message, "That organization slug is already in use.", 409);
+  if (message === "ORGANIZATION_UNAVAILABLE")
+    return jsonError(request, message, "The organization service is temporarily unavailable.", 503);
+  if (message === "INVITE_INVALID")
+    return jsonError(request, message, "The invitation is invalid or expired.", 400);
+  if (message === "INVITE_EMAIL_REQUIRED")
+    return jsonError(
+      request,
+      message,
+      "A verified account email is required to accept this invite.",
+      400,
+    );
+  if (message === "INVITE_EMAIL_MISMATCH")
+    return jsonError(
+      request,
+      message,
+      "This invitation was issued to a different email address.",
+      403,
+    );
+  if (message === "INVITE_ROLE_INVALID")
+    return jsonError(request, message, "The invitation role is invalid.", 400);
+  if (message === "INVITE_ALREADY_EXISTS")
+    return jsonError(request, message, "A live invitation already exists for that email.", 409);
+  if (message === "INVITE_UNAVAILABLE")
+    return jsonError(request, message, "The invitation service is temporarily unavailable.", 503);
+  if (message === "TIER_LIMIT_REACHED")
+    return jsonError(
+      request,
+      message,
+      "This organization has reached its active-agent limit.",
+      402,
+    );
+
+  if (message === "API_KEY_REQUIRED" || message === "API_KEY_INVALID")
+    return jsonError(request, message, "A valid HermesPass API key is required.", 401);
+  if (message === "API_KEY_RATE_LIMITED") {
+    const retryAfterSeconds = Number(
+      (error as { retryAfterSeconds?: number }).retryAfterSeconds ?? 60,
+    );
+    return Response.json(
+      {
+        error: {
+          code: message,
+          message: "API key rate limit exceeded.",
+          retryAfterSeconds,
+          requestId: id,
+        },
+      },
+      { status: 429, headers: { "retry-after": String(retryAfterSeconds) } },
+    );
+  }
+  if (message === "API_KEY_NAME_INVALID")
+    return jsonError(request, message, "The API key name is invalid.", 400);
+  if (message === "API_KEY_NOT_FOUND")
+    return jsonError(request, message, "API key not found.", 404);
+  if (message === "API_KEY_UNAVAILABLE")
+    return jsonError(request, message, "The API key service is temporarily unavailable.", 503);
+  if (message === "DID_INVALID")
+    return jsonError(request, message, "Only a valid did:web identifier is supported.", 400);
+  if (message === "PAYLOAD_TOO_LARGE")
+    return jsonError(request, message, "The request is too large.", 413);
+  if (message === "COMMS_INBOUND_SECRET_INVALID")
+    return jsonError(request, message, "Inbound authentication failed.", 401);
+  if (message === "COMMS_INBOUND_INVALID")
+    return jsonError(request, message, "The inbound message is invalid.", 400);
+  if (message === "COMMS_AGENT_NOT_FOUND")
+    return jsonError(request, message, "The addressed agent was not found.", 404);
+  if (message === "COMMS_UNAVAILABLE")
+    return jsonError(request, message, "Inbound communications are temporarily unavailable.", 503);
+  if (message === "COMMS_INBOUND_SECRET is required for inbound communications")
+    return jsonError(
+      request,
+      "COMMS_INBOUND_UNAVAILABLE",
+      "Inbound communications are unavailable.",
+      503,
+    );
+
+  if (
+    message === "BILLING_WEBHOOK_SIGNATURE_INVALID" ||
+    message === "BILLING_WEBHOOK_EVENT_INVALID" ||
+    message === "BILLING_PRICE_INVALID"
+  )
+    return jsonError(request, message, "The billing webhook is invalid.", 400);
+  if (message === "BILLING_CUSTOMER_NOT_FOUND")
+    return jsonError(request, message, "The billing customer was not found.", 404);
+  if (message === "BILLING_CUSTOMER_CONFLICT")
+    return jsonError(request, message, "The billing customer is already bound.", 409);
+  if (message === "BILLING_PROVIDER_RESPONSE_INVALID")
+    return jsonError(request, message, "The billing provider response is invalid.", 502);
+  if (
+    message === "STRIPE_SECRET_KEY is required for billing operations" ||
+    message === "STRIPE_BILLING_WEBHOOK_SECRET is required for billing webhooks"
+  )
+    return jsonError(request, "BILLING_UNAVAILABLE", "Billing configuration is unavailable.", 503);
+  if (/^STRIPE_PRICE_(STARTER|GROWTH|SCALE) is required for billing checkout$/.test(message))
+    return jsonError(request, "BILLING_UNAVAILABLE", "Billing configuration is unavailable.", 503);
+
+  if (message === "REPORT_EXPORT_INVALID")
+    return jsonError(request, message, "The report export credential is invalid.", 401);
+  if (message === "REPORT_EXPORT_SECRET is required for report exports")
+    return jsonError(
+      request,
+      "REPORT_EXPORT_UNAVAILABLE",
+      "Report export configuration is unavailable.",
+      503,
+    );
+  if (message === "REPORT_ORG_REQUIRED")
+    return jsonError(request, message, "An organization id is required for report exports.", 400);
+  if (message === "REPORT_ORG_INVALID")
+    return jsonError(request, message, "The organization id is invalid.", 400);
+  if (message === "REPORT_ORG_NOT_FOUND")
+    return jsonError(request, message, "The organization was not found.", 404);
+  if (
+    message === "REPORT_FRAMEWORK_INVALID" ||
+    message === "REPORT_FORMAT_INVALID" ||
+    message === "REPORT_PERIOD_INVALID" ||
+    message === "REPORT_REQUEST_INVALID"
+  )
+    return jsonError(request, message, "The report request is invalid.", 400);
+  if (message === "REPORT_UNAVAILABLE")
+    return jsonError(request, message, "The report could not be generated.", 503);
   if (message === "AGENT_NOT_FOUND")
     return Response.json(
       { error: { code: message, message: "Agent not found.", requestId: id } },

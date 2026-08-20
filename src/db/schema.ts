@@ -21,6 +21,14 @@ import {
 import { sql } from "drizzle-orm";
 
 export const memberRole = pgEnum("member_role", ["owner", "admin", "viewer"]);
+export const organizationTier = pgEnum("organization_tier", [
+  "pilot",
+  "starter",
+  "growth",
+  "scale",
+]);
+export const inviteRole = pgEnum("invite_role", ["admin", "viewer"]);
+export const messageDirection = pgEnum("message_direction", ["inbound", "outbound"]);
 export const riskTier = pgEnum("risk_tier", ["low", "medium", "high"]);
 export const agentStatus = pgEnum("agent_status", ["active", "revoked"]);
 export const keyStatus = pgEnum("key_status", ["active", "revoked"]);
@@ -43,6 +51,21 @@ export const telegramDeliveryState = pgEnum("telegram_delivery_state", [
   "pending",
   "sent",
   "failed",
+]);
+export const insuranceStatus = pgEnum("insurance_status", [
+  "quoted",
+  "binding",
+  "active",
+  "lapsed",
+  "canceled",
+]);
+export const insuranceEventKind = pgEnum("insurance_event_kind", [
+  "quoted",
+  "bind_started",
+  "bound",
+  "lapsed",
+  "canceled",
+  "renewed",
 ]);
 
 export const mandateKind = pgEnum("mandate_kind", ["intent", "cart"]);
@@ -95,10 +118,18 @@ export const organizations = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
+    tier: organizationTier("tier").notNull().default("pilot"),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("organizations_slug_key").on(table.slug)],
+  (table) => [
+    uniqueIndex("organizations_slug_key").on(table.slug),
+    uniqueIndex("organizations_stripe_customer_key")
+      .on(table.stripeCustomerId)
+      .where(sql`${table.stripeCustomerId} IS NOT NULL`),
+  ],
 );
 
 export const orgMembers = pgTable(
@@ -1007,6 +1038,354 @@ export const agentAuditLogs = pgTable(
   ],
 );
 
+export const insurancePolicies = pgTable(
+  "insurance_policies",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    agentId: uuid("agent_id").notNull(),
+    version: integer("version").notNull().default(1),
+    insurer: text("insurer").notNull().default("mock"),
+    insurerQuoteId: text("insurer_quote_id"),
+    insurerPolicyId: text("insurer_policy_id"),
+    risk: riskTier("risk").notNull(),
+    coverageCents: bigint("coverage_cents", { mode: "number" }).notNull(),
+    premiumCents: bigint("premium_cents", { mode: "number" }).notNull(),
+    commissionBps: integer("commission_bps").notNull().default(2000),
+    status: insuranceStatus("status").notNull().default("quoted"),
+    quotedAt: timestamp("quoted_at", { withTimezone: true }).defaultNow().notNull(),
+    bindingStartedAt: timestamp("binding_started_at", { withTimezone: true }),
+    boundAt: timestamp("bound_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    bindAttemptId: uuid("bind_attempt_id"),
+    bindAttemptExpiresAt: timestamp("bind_attempt_expires_at", { withTimezone: true }),
+    createdByUserId: text("created_by_user_id").notNull(),
+    updatedByUserId: text("updated_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("insurance_policies_id_agent_organization_key").on(
+      table.id,
+      table.agentId,
+      table.organizationId,
+    ),
+    unique("insurance_policies_agent_organization_version_key").on(
+      table.agentId,
+      table.organizationId,
+      table.version,
+    ),
+    uniqueIndex("insurance_policies_current_agent_key")
+      .on(table.organizationId, table.agentId)
+      .where(sql`${table.status} IN ('quoted', 'binding', 'active')`),
+    index("insurance_policies_organization_status_idx").on(table.organizationId, table.status),
+    index("insurance_policies_agent_created_idx").on(table.agentId, table.createdAt),
+    foreignKey({
+      name: "insurance_policies_agent_organization_fk",
+      columns: [table.agentId, table.organizationId],
+      foreignColumns: [agents.id, agents.organizationId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "insurance_policies_creator_organization_fk",
+      columns: [table.organizationId, table.createdByUserId],
+      foreignColumns: [orgMembers.organizationId, orgMembers.userId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "insurance_policies_updater_organization_fk",
+      columns: [table.organizationId, table.updatedByUserId],
+      foreignColumns: [orgMembers.organizationId, orgMembers.userId],
+    }).onDelete("restrict"),
+    check("insurance_policies_version_positive_check", sql`${table.version} > 0`),
+    check(
+      "insurance_policies_insurer_check",
+      sql`${table.insurer} = ANY(ARRAY['mock', 'aia', 'zurich']::text[])`,
+    ),
+    check(
+      "insurance_policies_amounts_safe_check",
+      sql`${table.coverageCents} > 0 AND ${table.coverageCents} <= 9007199254740991 AND ${table.premiumCents} > 0 AND ${table.premiumCents} <= 9007199254740991`,
+    ),
+    check("insurance_policies_commission_fixed_check", sql`${table.commissionBps} = 2000`),
+    check(
+      "insurance_policies_quote_state_check",
+      sql`(${table.status} = 'quoted' AND ${table.insurerQuoteId} IS NOT NULL AND ${table.insurerPolicyId} IS NULL) OR (${table.status} = 'binding' AND ${table.insurerQuoteId} IS NOT NULL AND ${table.insurerPolicyId} IS NULL) OR (${table.status} IN ('active', 'lapsed', 'canceled') AND ${table.insurerPolicyId} IS NOT NULL)`,
+    ),
+    check(
+      "insurance_policies_binding_attempt_check",
+      sql`(${table.status} = 'binding' AND ${table.bindAttemptId} IS NOT NULL AND ${table.bindAttemptExpiresAt} IS NOT NULL) OR (${table.status} <> 'binding' AND ${table.bindAttemptId} IS NULL AND ${table.bindAttemptExpiresAt} IS NULL)`,
+    ),
+    check(
+      "insurance_policies_bound_dates_check",
+      sql`(${table.status} IN ('active', 'lapsed', 'canceled') AND ${table.boundAt} IS NOT NULL AND ${table.expiresAt} IS NOT NULL) OR (${table.status} IN ('quoted', 'binding') AND ${table.boundAt} IS NULL AND ${table.expiresAt} IS NOT NULL)`,
+    ),
+    uniqueIndex("insurance_policies_quote_key")
+      .on(table.organizationId, table.agentId, table.insurerQuoteId)
+      .where(sql`${table.insurerQuoteId} IS NOT NULL`),
+  ],
+);
+
+export const insurancePolicyEvents = pgTable(
+  "insurance_policy_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    policyId: uuid("policy_id").notNull(),
+    agentId: uuid("agent_id").notNull(),
+    insurer: text("insurer").notNull(),
+    providerEventId: text("provider_event_id"),
+    eventKind: insuranceEventKind("event_kind").notNull(),
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    summary: text("summary").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    payloadDigest: bytea("payload_digest").notNull(),
+    effectiveAt: timestamp("effective_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("insurance_policy_events_id_policy_organization_key").on(
+      table.id,
+      table.policyId,
+      table.organizationId,
+    ),
+    uniqueIndex("insurance_policy_events_provider_event_key")
+      .on(table.insurer, table.providerEventId)
+      .where(sql`${table.providerEventId} IS NOT NULL`),
+    index("insurance_policy_events_policy_created_idx").on(table.policyId, table.createdAt),
+    foreignKey({
+      name: "insurance_policy_events_policy_agent_organization_fk",
+      columns: [table.policyId, table.agentId, table.organizationId],
+      foreignColumns: [
+        insurancePolicies.id,
+        insurancePolicies.agentId,
+        insurancePolicies.organizationId,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "insurance_policy_events_provider_id_check",
+      sql`${table.providerEventId} IS NULL OR length(btrim(${table.providerEventId})) BETWEEN 1 AND 255`,
+    ),
+    check(
+      "insurance_policy_events_summary_check",
+      sql`length(btrim(${table.summary})) BETWEEN 1 AND 280`,
+    ),
+    check(
+      "insurance_policy_events_payload_digest_check",
+      sql`octet_length(${table.payloadDigest}) = 32`,
+    ),
+  ],
+);
+
+export const insuranceCommissionLedger = pgTable(
+  "insurance_commission_ledger",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    policyId: uuid("policy_id").notNull(),
+    agentId: uuid("agent_id").notNull(),
+    premiumCents: bigint("premium_cents", { mode: "number" }).notNull(),
+    commissionBps: integer("commission_bps").notNull().default(2000),
+    commissionCents: bigint("commission_cents", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("insurance_commission_ledger_policy_key").on(table.policyId),
+    foreignKey({
+      name: "insurance_commission_ledger_policy_agent_organization_fk",
+      columns: [table.policyId, table.agentId, table.organizationId],
+      foreignColumns: [
+        insurancePolicies.id,
+        insurancePolicies.agentId,
+        insurancePolicies.organizationId,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "insurance_commission_ledger_amounts_safe_check",
+      sql`${table.premiumCents} > 0 AND ${table.premiumCents} <= 9007199254740991 AND ${table.commissionCents} >= 0 AND ${table.commissionCents} <= 9007199254740991`,
+    ),
+    check("insurance_commission_ledger_bps_check", sql`${table.commissionBps} = 2000`),
+    check(
+      "insurance_commission_ledger_math_check",
+      sql`${table.commissionCents} = floor(${table.premiumCents} * ${table.commissionBps} / 10000)`,
+    ),
+  ],
+);
+export const orgInvites = pgTable(
+  "org_invites",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: inviteRole("role").notNull().default("viewer"),
+    tokenHash: bytea("token_hash").notNull(),
+    invitedByUserId: text("invited_by_user_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("org_invites_token_hash_key").on(table.tokenHash),
+    uniqueIndex("org_invites_live_email_key")
+      .on(table.organizationId, table.email)
+      .where(sql`${table.acceptedAt} IS NULL`),
+    foreignKey({
+      name: "org_invites_inviter_organization_fk",
+      columns: [table.organizationId, table.invitedByUserId],
+      foreignColumns: [orgMembers.organizationId, orgMembers.userId],
+    }).onDelete("restrict"),
+    check(
+      "org_invites_email_check",
+      sql`${table.email} ~ '^[^[:cntrl:]@[:space:]]+@[^[:cntrl:]@[:space:]]+\\.[^[:cntrl:]@[:space:]]+$'`,
+    ),
+    check("org_invites_token_hash_length_check", sql`octet_length(${table.tokenHash}) = 32`),
+    check(
+      "org_invites_expiry_check",
+      sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '15 minutes'`,
+    ),
+    check(
+      "org_invites_acceptance_check",
+      sql`${table.acceptedAt} IS NULL OR ${table.acceptedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    keyHash: text("key_hash").notNull(),
+    createdByUserId: text("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("api_keys_key_hash_key").on(table.keyHash),
+    unique("api_keys_id_organization_key").on(table.id, table.organizationId),
+    foreignKey({
+      name: "api_keys_creator_organization_fk",
+      columns: [table.organizationId, table.createdByUserId],
+      foreignColumns: [orgMembers.organizationId, orgMembers.userId],
+    }).onDelete("restrict"),
+    check(
+      "api_keys_name_check",
+      sql`length(btrim(${table.name})) BETWEEN 2 AND 120 AND ${table.name} !~ '[[:cntrl:]]'`,
+    ),
+    check("api_keys_prefix_check", sql`length(${table.prefix}) = 12`),
+    check("api_keys_hash_check", sql`${table.keyHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+export const apiUsage = pgTable(
+  "api_usage",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    apiKeyId: uuid("api_key_id").notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    requestId: text("request_id").notNull(),
+    status: smallint("status").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("api_usage_key_time_idx").on(table.apiKeyId, table.createdAt),
+    foreignKey({
+      name: "api_usage_key_organization_fk",
+      columns: [table.apiKeyId, table.organizationId],
+      foreignColumns: [apiKeys.id, apiKeys.organizationId],
+    }).onDelete("cascade"),
+    check("api_usage_endpoint_check", sql`length(btrim(${table.endpoint})) BETWEEN 1 AND 120`),
+    check("api_usage_request_id_check", sql`length(btrim(${table.requestId})) BETWEEN 1 AND 120`),
+    check("api_usage_status_check", sql`${table.status} BETWEEN 100 AND 599`),
+  ],
+);
+
+export const billingEvents = pgTable(
+  "billing_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    providerEventId: text("provider_event_id").notNull(),
+    customerId: text("customer_id").notNull(),
+    eventType: text("event_type").notNull(),
+    payloadDigest: bytea("payload_digest").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("billing_events_provider_event_key").on(table.providerEventId),
+    index("billing_events_organization_received_idx").on(table.organizationId, table.receivedAt),
+    check(
+      "billing_events_provider_event_check",
+      sql`length(btrim(${table.providerEventId})) BETWEEN 1 AND 255`,
+    ),
+    check(
+      "billing_events_customer_check",
+      sql`length(btrim(${table.customerId})) BETWEEN 1 AND 255`,
+    ),
+    check("billing_events_digest_check", sql`octet_length(${table.payloadDigest}) = 32`),
+  ],
+);
+
+export const agentMessages = pgTable(
+  "agent_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    agentId: uuid("agent_id").notNull(),
+    direction: messageDirection("direction").notNull().default("inbound"),
+    fromAddress: text("from_address").notNull(),
+    toAddress: text("to_address").notNull(),
+    subject: text("subject"),
+    bodyText: text("body_text"),
+    providerMessageId: text("provider_message_id"),
+    payloadDigest: bytea("payload_digest").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("agent_messages_agent_received_idx").on(table.agentId, table.receivedAt),
+    uniqueIndex("agent_messages_provider_id_key")
+      .on(table.organizationId, table.providerMessageId)
+      .where(sql`${table.providerMessageId} IS NOT NULL`),
+    foreignKey({
+      name: "agent_messages_agent_organization_fk",
+      columns: [table.agentId, table.organizationId],
+      foreignColumns: [agents.id, agents.organizationId],
+    }).onDelete("restrict"),
+    check(
+      "agent_messages_from_check",
+      sql`length(btrim(${table.fromAddress})) BETWEEN 3 AND 320 AND ${table.fromAddress} !~ '[[:cntrl:]]'`,
+    ),
+    check(
+      "agent_messages_to_check",
+      sql`${table.toAddress} ~ '^[a-z0-9][a-z0-9-]{1,62}@agents\\.hermespass\\.asia$'`,
+    ),
+    check(
+      "agent_messages_subject_check",
+      sql`${table.subject} IS NULL OR (length(${table.subject}) <= 280 AND ${table.subject} !~ '[[:cntrl:]]')`,
+    ),
+    check(
+      "agent_messages_body_check",
+      sql`${table.bodyText} IS NULL OR octet_length(${table.bodyText}) <= 16384`,
+    ),
+    check("agent_messages_digest_check", sql`octet_length(${table.payloadDigest}) = 32`),
+  ],
+);
 export const schema = {
   organizations,
   orgMembers,
@@ -1023,6 +1402,14 @@ export const schema = {
   telegramLinks,
   telegramLinkTokens,
   agentAuditLogs,
+  insurancePolicies,
+  insurancePolicyEvents,
+  insuranceCommissionLedger,
+  orgInvites,
+  apiKeys,
+  apiUsage,
+  billingEvents,
+  agentMessages,
 };
 
 export type Organization = typeof organizations.$inferSelect;
@@ -1039,3 +1426,11 @@ export type AgentKeyEnrollmentRow = typeof agentKeyEnrollments.$inferSelect;
 export type TelegramLinkRow = typeof telegramLinks.$inferSelect;
 export type TelegramLinkTokenRow = typeof telegramLinkTokens.$inferSelect;
 export type AuditRow = typeof agentAuditLogs.$inferSelect;
+export type InsurancePolicyRow = typeof insurancePolicies.$inferSelect;
+export type InsurancePolicyEventRow = typeof insurancePolicyEvents.$inferSelect;
+export type InsuranceCommissionLedgerRow = typeof insuranceCommissionLedger.$inferSelect;
+export type OrgInviteRow = typeof orgInvites.$inferSelect;
+export type ApiKeyRow = typeof apiKeys.$inferSelect;
+export type ApiUsageRow = typeof apiUsage.$inferSelect;
+export type BillingEventRow = typeof billingEvents.$inferSelect;
+export type AgentMessageRow = typeof agentMessages.$inferSelect;

@@ -28,6 +28,50 @@ export function hasNeonAuthConfig(): boolean {
   return Boolean(process.env["NEON_AUTH_BASE_URL"] && process.env["NEON_AUTH_COOKIE_SECRET"]);
 }
 
+export function insuranceWebhookSecret(): string {
+  const value = process.env["INSURANCE_WEBHOOK_SECRET"];
+  if (!value) throw new Error("INSURANCE_WEBHOOK_SECRET is required for insurance operations");
+  return value;
+}
+
+function requiredProductizationSecret(name: string, message: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(message);
+  return value;
+}
+
+export function reportExportSecret(): string {
+  return requiredProductizationSecret(
+    "REPORT_EXPORT_SECRET",
+    "REPORT_EXPORT_SECRET is required for report exports",
+  );
+}
+
+export function stripeBillingSecret(): string {
+  return requiredProductizationSecret(
+    "STRIPE_SECRET_KEY",
+    "STRIPE_SECRET_KEY is required for billing operations",
+  );
+}
+
+export function stripeBillingWebhookSecret(): string {
+  return requiredProductizationSecret(
+    "STRIPE_BILLING_WEBHOOK_SECRET",
+    "STRIPE_BILLING_WEBHOOK_SECRET is required for billing webhooks",
+  );
+}
+
+export function commsInboundSecret(): string {
+  return requiredProductizationSecret(
+    "COMMS_INBOUND_SECRET",
+    "COMMS_INBOUND_SECRET is required for inbound communications",
+  );
+}
+
+export function stripeBillingPrice(tier: "starter" | "growth" | "scale"): string {
+  const name = `STRIPE_PRICE_${tier.toUpperCase()}`;
+  return requiredProductizationSecret(name, `${name} is required for billing checkout`);
+}
 export function keyEnvironment(): KeyEnvironment {
   const value = process.env["HERMES_KEY_ENVIRONMENT"] ?? process.env["VERCEL_ENV"] ?? "development";
   if (value === "production" || value === "preview" || value === "development") return value;

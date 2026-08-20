@@ -48,6 +48,20 @@ export function ComplianceClient() {
               <FileText className="size-4" />
               PDF report
             </Button>
+            <Button asChild variant="outline" className="bg-surface">
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a href="/api/reports/compliance?framework=imda&format=csv&periodStart=2026-01-01&periodEnd=2026-12-31">
+                <Download className="size-4" />
+                Export IMDA report
+              </a>
+            </Button>
+            <Button asChild variant="outline" className="bg-surface">
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a href="/api/reports/compliance?framework=hkma&format=csv&periodStart=2026-01-01&periodEnd=2026-12-31">
+                <Download className="size-4" />
+                Export HKMA report
+              </a>
+            </Button>
             <Button asChild className="shadow-glow-emerald">
               <a href="/api/audit/export.csv">
                 <Download className="size-4" />

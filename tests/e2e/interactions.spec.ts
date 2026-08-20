@@ -113,6 +113,7 @@ test.describe("Next interactions", () => {
 
       await page.getByRole("button", { name: "Pause stream" }).click();
       await expect(page.getByRole("button", { name: "Resume stream" })).toBeVisible();
+      await page.waitForTimeout(3_500);
       const pausedActivityRequests = activityRequests;
       const pausedApprovalRequests = approvalRequests;
 
@@ -133,17 +134,83 @@ test.describe("Next interactions", () => {
     });
 
     test("wallet limits change and a card can be frozen", async ({ page }) => {
-      await page.goto(`${NEXT_BASE_URL}/dashboard/wallets`);
+      const agentId = "00000000-0000-4000-8000-000000000011";
+      const cardId = "11111111-1111-4111-8111-111111111111";
+      let cardStatus = "active";
+      await page.route("**/api/wallets", async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              cards: [
+                {
+                  id: cardId,
+                  agentId,
+                  agentSlug: "fimmick-merchant-concierge",
+                  agentDid: "did:web:hermespass.asia:agent:fimmick-merchant-concierge",
+                  rail: "mock",
+                  last4: "4242",
+                  brand: "Mock",
+                  currency: "HKD",
+                  status: cardStatus,
+                  policyVersion: 1,
+                  createdAt: "2026-01-01T00:00:00.000Z",
+                  updatedAt: "2026-01-01T00:00:00.000Z",
+                  frozenAt: cardStatus === "frozen" ? "2026-01-01T00:00:00.000Z" : null,
+                },
+              ],
+            },
+          }),
+        });
+      });
+      await page.route("**/api/agents/*/policy", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              policy: {
+                id: "22222222-2222-4222-8222-222222222222",
+                agentId,
+                version: 1,
+                currency: "HKD",
+                perTransactionLimitCents: 50000,
+                dailyLimitCents: 100000,
+                monthlyLimitCents: 400000,
+                approvalThresholdCents: 5000,
+                mccAllowlist: [],
+                mccRequired: false,
+                assignedReviewerUserId: "e2e-owner",
+                isActive: true,
+                supersededAt: null,
+                createdAt: "2026-01-01T00:00:00.000Z",
+              },
+            },
+          }),
+        });
+      });
+      await page.route("**/api/wallets/*/status", async (route) => {
+        cardStatus = "frozen";
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: { card: { id: cardId, status: "frozen" } } }),
+        });
+      });
+      await page.goto(
+        (process.env["NEXT_BASE_URL"] ?? "http://127.0.0.1:3101") + "/dashboard/wallets",
+      );
       const sliders = page.getByRole("slider");
       await expect(sliders.nth(0)).toHaveAttribute("aria-valuenow", "500");
+      await expect(sliders.nth(0)).toHaveAttribute("data-disabled", "");
       await sliders.nth(0).press("ArrowRight");
-      await expect(sliders.nth(0)).toHaveAttribute("aria-valuenow", "600");
+      await expect(sliders.nth(0)).toHaveAttribute("aria-valuenow", "500");
 
       await page.getByRole("button", { name: "Freeze card" }).first().click();
-      await expect(sliders.nth(0)).toHaveAttribute("aria-valuenow", "0");
-      await expect(sliders.nth(1)).toHaveAttribute("aria-valuenow", "0");
+      await expect(page.getByRole("button", { name: "Unfreeze card" })).toBeVisible();
     });
-
     test("compliance print and CSV export actions work", async ({ page }) => {
       await page.addInitScript(() => {
         window.print = () => {

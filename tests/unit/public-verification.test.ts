@@ -2,15 +2,24 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { generateEd25519KeyPair } from "@/lib/identity/keys";
 import { buildPassportCredential, signPassportCredential } from "@/lib/identity/vc";
+import { safeVerificationDto, verifyWithApiKey } from "@/lib/productization/verification";
 
 const database = vi.hoisted(() => ({ execute: vi.fn() }));
 
 vi.mock("@/lib/db", () => ({
   withPublicDatabase: async (
-    operation: (client: { execute: typeof database.execute }) => Promise<unknown>,
-  ) => operation({ execute: database.execute }),
+    operation: (client: {
+      execute: typeof database.execute;
+      transaction: (
+        callback: (client: { execute: typeof database.execute }) => Promise<unknown>,
+      ) => Promise<unknown>;
+    }) => Promise<unknown>,
+  ) =>
+    operation({
+      execute: database.execute,
+      transaction: async (callback) => callback({ execute: database.execute }),
+    }),
 }));
-
 vi.mock("@/lib/auth/authorization", () => ({
   assertCanMutate: vi.fn(),
   withActorTransaction: vi.fn(),
@@ -184,5 +193,81 @@ describe("public passport verification", () => {
         storedStatus: "active",
       },
     });
+  });
+});
+describe("metered public verification", () => {
+  it("projects only safe public credential fields", () => {
+    const result = safeVerificationDto({
+      valid: true,
+      status: "active",
+      did: "did:web:hermespass.asia:agent:demo",
+      credentialId: "urn:uuid:credential",
+      issuer: "did:web:hermespass.asia",
+      credential: { credentialSubject: { id: "did:web:hermespass.asia:agent:demo" } },
+      organizationId: "secret-org",
+      governanceNotes: "secret notes",
+      credentialJws: "secret-jws",
+      publicJwk: { kty: "OKP", crv: "Ed25519", x: "secret" },
+      apiKey: "hp_live_secret",
+    });
+    expect(result).toEqual({
+      valid: true,
+      status: "active",
+      did: "did:web:hermespass.asia:agent:demo",
+      credentialId: "urn:uuid:credential",
+      issuer: "did:web:hermespass.asia",
+      credential: { credentialSubject: { id: "did:web:hermespass.asia:agent:demo" } },
+    });
+    expect(JSON.stringify(result)).not.toContain("secret-org");
+    expect(JSON.stringify(result)).not.toContain("secret-jws");
+  });
+
+  it("rejects missing or ambiguous bearer credentials before database access", async () => {
+    const request = new Request(
+      "http://localhost/api/v1/verify/did:web:hermespass.asia:agent:demo",
+    );
+    await expect(verifyWithApiKey(request, "did:web:hermespass.asia:agent:demo")).rejects.toThrow(
+      "API_KEY_REQUIRED",
+    );
+    const ambiguous = new Request(request, {
+      headers: { authorization: "Bearer hp_live_one, Bearer hp_live_two" },
+    });
+    await expect(verifyWithApiKey(ambiguous, "did:web:hermespass.asia:agent:demo")).rejects.toThrow(
+      "API_KEY_INVALID",
+    );
+  });
+  it("meters a valid key before returning a safe unknown-DID 404", async () => {
+    database.execute
+      .mockResolvedValueOnce({
+        rows: [{ api_key_id: "key-id", allowed: true, retry_after_seconds: 0 }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+    const request = new Request(
+      "http://localhost/api/v1/verify/did:web:hermespass.asia:agent:missing",
+      { headers: { authorization: "Bearer hp_live_unknown_did" } },
+    );
+    await expect(
+      verifyWithApiKey(request, "did:web:hermespass.asia:agent:missing"),
+    ).rejects.toThrow("AGENT_NOT_FOUND");
+    expect(database.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects unsafe DIDs and oversized requests before database access", async () => {
+    const unsafeRequest = new Request("http://localhost/api/v1/verify/unsafe", {
+      headers: { authorization: "Bearer hp_live_public_demo" },
+    });
+    await expect(verifyWithApiKey(unsafeRequest, "https://example.test/agent")).rejects.toThrow(
+      "DID_INVALID",
+    );
+    const oversizedRequest = new Request("http://localhost/api/v1/verify/oversized", {
+      headers: {
+        authorization: "Bearer hp_live_public_demo",
+        "content-length": String(16 * 1024 + 1),
+      },
+    });
+    await expect(
+      verifyWithApiKey(oversizedRequest, "did:web:hermespass.asia:agent:demo"),
+    ).rejects.toThrow("PAYLOAD_TOO_LARGE");
+    expect(database.execute).not.toHaveBeenCalled();
   });
 });
