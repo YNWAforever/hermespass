@@ -9,20 +9,16 @@ import { Label } from "@/components/ui/label";
 
 const initialState: MagicLinkState = { sent: false };
 
-export function MagicLinkForm({ next: _next }: { next: string }) {
+export function MagicLinkForm({ next }: { next: string }) {
+  void next;
+
   const [state, action, pending] = useActionState(requestMagicLinkAction, initialState);
 
   return (
     <form action={action} className="grid gap-4">
       <div className="grid gap-2">
         <Label htmlFor="magic-link-email">Magic-link email</Label>
-        <Input
-          id="magic-link-email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-        />
+        <Input id="magic-link-email" name="email" type="email" autoComplete="email" required />
       </div>
       {state.sent ? (
         <p role="status" className="text-sm text-muted-foreground">

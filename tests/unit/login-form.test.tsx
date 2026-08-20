@@ -47,9 +47,7 @@ describe("LoginForm", () => {
 
     render(<LoginForm next="/dashboard" />);
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "If an account exists, check your email.",
-    );
+    expect(screen.getByRole("status")).toHaveTextContent("If an account exists, check your email.");
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();

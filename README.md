@@ -85,4 +85,3 @@ bun run release:phase6
 ```
 
 Use [Phase 6 release gates](docs/release/phase-6-gates.md) and [launch readiness](docs/launch-readiness.md) as evidence ledgers. Hosted Neon, Vercel, Cloudflare, Stripe, n8n, DNS, production migrations, issuer material, and customer seeding remain approval-gated.
-

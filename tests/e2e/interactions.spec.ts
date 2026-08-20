@@ -50,7 +50,9 @@ test.describe("Next interactions", () => {
     );
   });
 
-  test("magic-link sign-in shows the generic success state without hiding password login", async ({ page }) => {
+  test("magic-link sign-in shows the generic success state without hiding password login", async ({
+    page,
+  }) => {
     await page.goto(`${NEXT_BASE_URL}/login?next=%2Fdashboard`);
     await page.getByLabel("Magic-link email").fill("member@example.com");
     await page.getByRole("button", { name: "Email me a sign-in link" }).click();
@@ -239,6 +241,3 @@ test.describe("Next interactions", () => {
     });
   });
 });
-
-
-
