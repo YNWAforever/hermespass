@@ -69,4 +69,23 @@ describe("inbound communications route", () => {
       text: "private body",
     });
   });
+  it("accepts the documented Cloudflare worker secret header alias", async () => {
+    const { POST } = await import("@/app/api/comms/inbound/route");
+    const response = await POST(
+      new Request("http://localhost/api/comms/inbound", {
+        method: "POST",
+        headers: {
+          "x-hermespass-comms-secret": "inbound-secret",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "sender@example.test",
+          to: "agent@agents.hermespass.asia",
+          text: "private body",
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { messageId: "m-1", agentId: "a-1" } });
+  });
 });

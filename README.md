@@ -75,3 +75,13 @@ Use `ops/n8n/compliance-report.json` only after a separate nonproduction provide
 ## Release status
 
 Source and local PostgreSQL/browser evidence can be reproduced without hosted providers. Singapore-first Neon setup, Stripe configuration, n8n activation, domain/DNS changes, publication, production migrations, and customer seed remain explicitly **awaiting approval**. See [launch readiness](docs/launch-readiness.md) and [Phase 5 gates](docs/release/phase-5-gates.md).
+
+## Phase 6 release preflight
+
+The Phase 6 release command is offline and redacted: it checks required variable names, restricted `hermes_app` runtime-role separation, deployment branch/base URL shape, migration drift, route fixtures, and secret-like literals without contacting Neon or other providers.
+
+```powershell
+bun run release:phase6
+```
+
+Use [Phase 6 release gates](docs/release/phase-6-gates.md) and [launch readiness](docs/launch-readiness.md) as evidence ledgers. Hosted Neon, Vercel, Cloudflare, Stripe, n8n, DNS, production migrations, issuer material, and customer seeding remain approval-gated.

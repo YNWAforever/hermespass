@@ -48,7 +48,9 @@ async function readRawBody(request: Request): Promise<string> {
 export async function POST(request: Request): Promise<Response> {
   try {
     const suppliedSecret =
-      request.headers.get("x-comms-secret") ?? request.headers.get("x-comms-inbound-secret");
+      request.headers.get("x-comms-secret") ??
+      request.headers.get("x-comms-inbound-secret") ??
+      request.headers.get("x-hermespass-comms-secret");
     if (!exactSecret(suppliedSecret, commsInboundSecret())) {
       return jsonError(
         request,

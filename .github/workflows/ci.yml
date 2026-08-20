@@ -58,6 +58,16 @@ jobs:
           bun x drizzle-kit generate --name=ci_consistency
           git diff --exit-code -- drizzle src/db/schema.ts
 
+      - name: Phase 6 offline release preflight
+        env:
+          PHASE6_REQUIRED_VARIABLES: DATABASE_URL,NEON_AUTH_COOKIE_SECRET,HERMES_KEK_V1
+          PHASE6_PRESENT_VARIABLES: DATABASE_URL,NEON_AUTH_COOKIE_SECRET,HERMES_KEK_V1
+          PHASE6_DATABASE_URL: postgresql://hermes_app:fixture@localhost:5432/hermespass
+          PHASE6_DEPLOYMENT_BRANCH: development
+          PHASE6_BASE_URL: http://localhost:3000
+          PHASE6_ROUTE_CONTRACT: pass
+        run: bun run release:phase6
+
       - name: Build production application
         run: bun run build
 

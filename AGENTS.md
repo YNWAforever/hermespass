@@ -28,3 +28,9 @@
 - Productization adapters remain request-time and lazy: missing report, Stripe, or communications secrets must fail closed without breaking static builds.
 - Persist only hashes/digests for invite, API-key, provider-event, and message replay identifiers; keep raw provider payloads and credentials out of logs and browser responses.
 - Keep n8n and Stripe artifacts inactive/test-mode until the separate nonproduction provider approval; production migrations, DNS, publication, and customer seed require a separate production release approval.
+
+## Phase 6 release boundaries
+
+- The offline Phase 6 preflight validates configuration shape, migration hygiene, route contracts, and secret-pattern absence without network or provider calls; it must never print secret values.
+- Neon is the authoritative database provider. Hosted Neon/Vercel, Cloudflare, Stripe, n8n, DNS, production migrations, issuer generation, and customer seed remain separate approval-gated operations.
+- Keep the launch ledger dated and evidence-linked; unchecked external items are not implied to be complete by green local CI.
